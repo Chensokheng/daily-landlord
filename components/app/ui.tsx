@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,67 @@ export function MobileFrame({ children }: { children: React.ReactNode }) {
       <div className="pointer-events-none absolute inset-x-0 top-0 h-72 canvas-aura" />
       <div className="relative mx-auto flex min-h-dvh w-full max-w-[460px] flex-col">
         {children}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Bottom sheet — slide-up modal anchored to the mobile frame          */
+/* ------------------------------------------------------------------ */
+
+export function Sheet({
+  open,
+  onClose,
+  title,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  // Lock background scroll while open.
+  React.useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-center">
+      {/* Backdrop */}
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onClose}
+        className="animate-fade absolute inset-0 bg-ink/30 backdrop-blur-[2px]"
+      />
+      {/* Panel */}
+      <div className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-[460px]">
+        <div className="animate-sheet flex max-h-[90dvh] flex-col rounded-t-[1.8rem] border-t border-line bg-paper shadow-[0_-12px_40px_-12px_oklch(0.24_0.024_257/0.28)]">
+          <div className="flex items-center justify-between px-6 pt-5 pb-3">
+            <h2 className="font-display text-[1.3rem] font-bold tracking-tight text-ink">
+              {title}
+            </h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="pressable -mr-1 grid size-9 place-items-center rounded-full text-ink-soft hover:bg-secondary"
+              aria-label="Close"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+          <div className="overflow-y-auto px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+            {children}
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -19,18 +19,19 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import { Input } from "@/components/ui/input";
-import { formatUSD, useApp } from "@/lib/store";
+import { useConfig, useConfigActions } from "@/hooks/use-config";
 import type { UtilityConfig, UtilityMode } from "@/lib/types";
-import { cn, imageFileToDataUrl } from "@/lib/utils";
+import { cn, formatUSD, imageFileToDataUrl } from "@/lib/utils";
 import { Btn, Field, MobileFrame, MoneyField, Segmented, Switch } from "./ui";
 
 type Step = "welcome" | "setup";
 
 export function Onboarding() {
-  const { state, completeOnboarding } = useApp();
+  const config = useConfig();
+  const { completeOnboarding } = useConfigActions();
   const [step, setStep] = React.useState<Step>("welcome");
 
-  const profileValid = state.config.profile.name.trim().length > 0;
+  const profileValid = config.profile.name.trim().length > 0;
 
   // Welcome is a full-bleed screen; setup is one editable form.
   if (step === "welcome") {
@@ -208,8 +209,9 @@ function Section({
 /* ------------------------------------------------------------------ */
 
 function ProfileFields() {
-  const { state, updateProfile } = useApp();
-  const p = state.config.profile;
+  const config = useConfig();
+  const { updateProfile } = useConfigActions();
+  const p = config.profile;
   return (
     <div className="space-y-5">
       <Field label="Your name">
@@ -285,8 +287,9 @@ function UtilityCard({
   tint: string;
   name: string;
 }) {
-  const { state, updateUtility } = useApp();
-  const u: UtilityConfig = state.config[which];
+  const config = useConfig();
+  const { updateUtility } = useConfigActions();
+  const u: UtilityConfig = config[which];
 
   return (
     <div
@@ -362,8 +365,9 @@ function UtilityCard({
 /* ------------------------------------------------------------------ */
 
 function ExtrasFields() {
-  const { state, addExtra, removeExtra } = useApp();
-  const extras = state.config.extras;
+  const config = useConfig();
+  const { addExtra, removeExtra } = useConfigActions();
+  const extras = config.extras;
   const [name, setName] = React.useState("");
   const [amount, setAmount] = React.useState(0);
 
@@ -449,8 +453,9 @@ function ExtrasFields() {
 /* ------------------------------------------------------------------ */
 
 export function PaymentQrField() {
-  const { state, setPaymentQr } = useApp();
-  const qr = state.config.paymentQr;
+  const config = useConfig();
+  const { setPaymentQr } = useConfigActions();
+  const qr = config.paymentQr;
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [error, setError] = React.useState<string | null>(null);
 

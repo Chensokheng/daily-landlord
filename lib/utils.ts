@@ -5,6 +5,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function formatUSD(n: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(n) ? n : 0);
+}
+
+/** Trim a meter quantity to at most 2 decimals without trailing zeros. */
+export function formatQty(n: number) {
+  return (Math.round(n * 100) / 100).toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+  });
+}
+
 /**
  * Read an image File and return a downscaled PNG data URL. QR codes need crisp
  * edges to stay scannable, so we cap the longest side (default 640px) and keep

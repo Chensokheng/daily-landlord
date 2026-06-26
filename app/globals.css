@@ -236,9 +236,36 @@
   }
 }
 
+/* Bottom-sheet entrance */
+@keyframes sheetUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.animate-sheet {
+  animation: sheetUp 0.34s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade {
+  animation: fadeIn 0.24s ease both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-step,
-  .animate-rise {
+  .animate-rise,
+  .animate-sheet,
+  .animate-fade {
     animation: none;
   }
 }

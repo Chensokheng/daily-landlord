@@ -39,18 +39,46 @@ export interface Tenant {
   id: string;
   name: string;
   phone: string;
+  /** Room / unit label, e.g. "3A" */
   unit: string;
+  /** Monthly rent in USD */
   rent: number;
+  /** Optional baseline meter readings — the "previous" value for the first invoice. */
+  startWater: number;
+  startElectricity: number;
+  /** Optional ISO date (yyyy-mm-dd), "" if unset */
+  moveInDate: string;
+  /** Optional free-text notes */
+  notes: string;
   createdAt: number;
+}
+
+export interface InvoiceLine {
+  label: string;
+  detail?: string;
+  amount: number;
+}
+
+export interface MeterReading {
+  previous: number;
+  current: number;
 }
 
 export interface Invoice {
   id: string;
   tenantId: string;
+  /** Snapshot of tenant identity so the invoice survives tenant edits/removal. */
+  tenantName: string;
+  tenantUnit: string;
   createdAt: number;
   periodLabel: string;
-  lines: { label: string; detail?: string; amount: number }[];
+  lines: InvoiceLine[];
   total: number;
+  /** Raw meter readings used, so the next period can prefill "previous". */
+  readings: {
+    water?: MeterReading;
+    electricity?: MeterReading;
+  };
 }
 
 export interface AppState {

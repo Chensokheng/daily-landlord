@@ -12,13 +12,26 @@ import {
   Zap,
 } from "lucide-react";
 import type * as React from "react";
-import { formatUSD, useApp } from "@/lib/store";
+import { useConfig, useConfigActions } from "@/hooks/use-config";
+import { useInvoices } from "@/hooks/use-invoices";
+import { useTenants } from "@/hooks/use-tenants";
 import type { UtilityConfig } from "@/lib/types";
+import { formatUSD } from "@/lib/utils";
 import { MobileFrame } from "./ui";
 
-export function Home() {
-  const { state, resetAll } = useApp();
-  const c = state.config;
+export function Home({
+  onOpenTenants,
+  onNewInvoice,
+  onOpenInvoices,
+}: {
+  onOpenTenants: () => void;
+  onNewInvoice: () => void;
+  onOpenInvoices: () => void;
+}) {
+  const c = useConfig();
+  const { resetAll } = useConfigActions();
+  const { data: tenants = [] } = useTenants();
+  const { data: invoices = [] } = useInvoices();
   const firstName = c.profile.name.trim().split(/\s+/)[0] || "there";
 
   const utilLine = (u: UtilityConfig) =>
@@ -66,13 +79,15 @@ export function Home() {
         >
           <Stat
             icon={<Users className="size-4" />}
-            value={String(state.tenants.length)}
+            value={String(tenants.length)}
             label="Tenants"
+            onClick={onOpenTenants}
           />
           <Stat
             icon={<Receipt className="size-4" />}
-            value={String(state.invoices.length)}
+            value={String(invoices.length)}
             label="Invoices"
+            onClick={onOpenInvoices}
           />
         </div>
 
@@ -83,17 +98,23 @@ export function Home() {
         >
           <ActionCard
             icon={<UserPlus className="size-5" />}
-            title="Add a tenant"
-            sub="Name, phone & their monthly rent"
+            title={tenants.length === 0 ? "Add a tenant" : "Manage tenants"}
+            sub={
+              tenants.length === 0
+                ? "Name, phone & their monthly rent"
+                : `${tenants.length} tenant${tenants.length > 1 ? "s" : ""} — tap to view or add`
+            }
             tone="brand"
+            onClick={onOpenTenants}
           />
           <ActionCard
             icon={<Receipt className="size-5" />}
             title="Generate an invoice"
             sub="Enter readings & send in seconds"
             tone="ink"
-            disabled={state.tenants.length === 0}
+            disabled={tenants.length === 0}
             disabledNote="Add a tenant first"
+            onClick={onNewInvoice}
           />
         </div>
 
@@ -164,7 +185,7 @@ export function Home() {
           style={{ animationDelay: "0.24s" }}
         >
           <RotateCcw className="size-3.5" />
-          Setup complete — tenants & invoices are coming next.
+          Everything stays on this device.
         </p>
       </div>
     </MobileFrame>
@@ -175,13 +196,20 @@ function Stat({
   icon,
   value,
   label,
+  onClick,
 }: {
   icon: React.ReactNode;
   value: string;
   label: string;
+  onClick?: () => void;
 }) {
   return (
-    <div className="rounded-3xl border border-line bg-surface p-4 ring-card">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className="pressable rounded-3xl border border-line bg-surface p-4 text-left ring-card enabled:hover:border-line2 disabled:cursor-default"
+    >
       <div className="flex items-center gap-2 text-faint">
         {icon}
         <span className="text-[0.8rem] font-medium tracking-wide uppercase">
@@ -191,7 +219,7 @@ function Stat({
       <p className="nums mt-2 font-display text-[2rem] leading-none font-bold text-ink">
         {value}
       </p>
-    </div>
+    </button>
   );
 }
 
@@ -202,6 +230,7 @@ function ActionCard({
   tone,
   disabled,
   disabledNote,
+  onClick,
 }: {
   icon: React.ReactNode;
   title: string;
@@ -209,11 +238,13 @@ function ActionCard({
   tone: "brand" | "ink";
   disabled?: boolean;
   disabledNote?: string;
+  onClick?: () => void;
 }) {
   return (
     <button
       type="button"
       disabled={disabled}
+      onClick={onClick}
       className="pressable group flex w-full items-center gap-4 rounded-3xl border border-line bg-surface p-4 text-left ring-card disabled:pointer-events-none disabled:opacity-55"
     >
       <span
