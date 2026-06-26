@@ -1,26 +1,244 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-display);
+  --font-heading: var(--font-display);
+
+  /* App palette — cool slate & quiet blue, light only */
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line2: var(--line2);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-wash: var(--brand-wash);
+  --color-brand-glow: var(--brand-glow);
+  --color-ok: var(--ok);
+  --color-ok-wash: var(--ok-wash);
+
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  /* App palette */
+  --paper: oklch(0.988 0.004 247);
+  --surface: oklch(1 0 0);
+  --ink: oklch(0.24 0.024 257);
+  --ink-soft: oklch(0.44 0.022 257);
+  --faint: oklch(0.62 0.018 257);
+  --line: oklch(0.922 0.008 257);
+  --line2: oklch(0.86 0.012 257);
+  --brand: oklch(0.55 0.158 256);
+  --brand-ink: oklch(0.45 0.16 258);
+  --brand-wash: oklch(0.965 0.018 256);
+  --brand-glow: oklch(0.72 0.13 255);
+  --ok: oklch(0.58 0.12 168);
+  --ok-wash: oklch(0.96 0.03 168);
+
+  --radius: 0.85rem;
+
+  /* shadcn tokens mapped onto the palette */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--brand);
+  --primary-foreground: oklch(0.99 0.005 256);
+  --secondary: oklch(0.965 0.006 257);
+  --secondary-foreground: var(--ink);
+  --muted: oklch(0.965 0.006 257);
+  --muted-foreground: var(--faint);
+  --accent: var(--brand-wash);
+  --accent-foreground: var(--brand-ink);
+  --destructive: oklch(0.585 0.21 22);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--brand-glow);
+  --chart-1: oklch(0.55 0.158 256);
+  --chart-2: oklch(0.7 0.13 255);
+  --chart-3: oklch(0.58 0.12 168);
+  --chart-4: oklch(0.75 0.1 90);
+  --chart-5: oklch(0.65 0.18 30);
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: var(--brand-wash);
+  --sidebar-accent-foreground: var(--brand-ink);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--brand-glow);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-paper text-ink;
+    font-feature-settings: "ss01", "cv01";
+    -webkit-tap-highlight-color: transparent;
+  }
+  html {
+    @apply font-sans;
+  }
+  /* Tabular figures everywhere numbers matter */
+  .nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum", "lnum";
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  /* Faint dotted grid texture for the app canvas */
+  .canvas-grid {
+    background-image: radial-gradient(
+      oklch(0.55 0.158 256 / 0.05) 1px,
+      transparent 1px
+    );
+    background-size: 22px 22px;
+    background-position: -1px -1px;
+  }
+
+  /* Soft cool aura bleeding from the top of the screen */
+  .canvas-aura {
+    background:
+      radial-gradient(
+        120% 60% at 50% -10%,
+        oklch(0.72 0.13 255 / 0.16),
+        transparent 60%
+      ),
+      radial-gradient(
+        80% 50% at 110% 0%,
+        oklch(0.58 0.12 168 / 0.08),
+        transparent 55%
+      );
+  }
+
+  .ring-soft {
+    box-shadow:
+      0 1px 2px oklch(0.24 0.024 257 / 0.04),
+      0 8px 24px -12px oklch(0.24 0.024 257 / 0.12);
+  }
+
+  .ring-card {
+    box-shadow:
+      0 1px 0 oklch(1 0 0 / 0.6) inset,
+      0 1px 2px oklch(0.24 0.024 257 / 0.05),
+      0 12px 32px -18px oklch(0.24 0.024 257 / 0.18);
+  }
+
+  .ring-brand {
+    box-shadow:
+      0 1px 2px oklch(0.45 0.16 258 / 0.25),
+      0 10px 24px -10px oklch(0.45 0.16 258 / 0.45);
+  }
+
+  .pressable {
+    transition:
+      transform 0.12s cubic-bezier(0.2, 0, 0, 1),
+      box-shadow 0.2s ease,
+      background-color 0.18s ease,
+      border-color 0.18s ease;
+  }
+  .pressable:active {
+    transform: scale(0.975);
+  }
+}
+
+/* Step transition for the onboarding wizard */
+@keyframes stepIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-step {
+  animation: stepIn 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-rise {
+  animation: riseIn 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes floatGlow {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-step,
+  .animate-rise {
+    animation: none;
+  }
 }
