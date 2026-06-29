@@ -14,6 +14,8 @@ export interface InvoiceDraft {
   includeRent: boolean;
   water: MeterReading;
   electricity: MeterReading;
+  /** Config extra-fee ids to drop from this invoice (default: include all). */
+  excludedExtraIds?: string[];
 }
 
 export interface ComputedInvoice {
@@ -78,7 +80,9 @@ export function computeInvoice(
     if (elec.reading) readings.electricity = elec.reading;
   }
 
+  const excluded = new Set(draft.excludedExtraIds ?? []);
   for (const extra of config.extras) {
+    if (excluded.has(extra.id)) continue;
     lines.push({ label: extra.name, amount: extra.amount });
   }
 

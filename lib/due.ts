@@ -1,4 +1,4 @@
-import type { Invoice, Tenant } from "./types";
+import { type Invoice, isTenantActive, type Tenant } from "./types";
 
 /** Within this many days of the due date counts as "due soon". */
 export const DUE_SOON_DAYS = 3;
@@ -155,8 +155,11 @@ export function billingTodos(
 
   return (
     tenants
-      // Has a cycle, and Tally has started billing them by this month.
-      .filter((t) => t.dueDay >= 1 && key >= (t.firstBillKey || key))
+      // Active tenants with a cycle that Tally has started billing this month.
+      .filter(
+        (t) =>
+          isTenantActive(t) && t.dueDay >= 1 && key >= (t.firstBillKey || key),
+      )
       .map((t) => {
         const effectiveDue = Math.min(t.dueDay, monthDays);
         return { tenant: t, effectiveDue };

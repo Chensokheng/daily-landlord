@@ -18,6 +18,7 @@ import { useConfig } from "@/hooks/use-config";
 import { useInvoices } from "@/hooks/use-invoices";
 import { useTenants } from "@/hooks/use-tenants";
 import { attentionItems, billingTodos, statusLabel } from "@/lib/due";
+import { useT } from "@/lib/i18n";
 import type { UtilityConfig } from "@/lib/types";
 import { formatUSD } from "@/lib/utils";
 import { BillTodoRow } from "./bill-todo";
@@ -38,6 +39,7 @@ export function Home({
   onOpenSettings: () => void;
 }) {
   const c = useConfig();
+  const t = useT();
   const { data: tenants = [] } = useTenants();
   const { data: invoices = [] } = useInvoices();
   const firstName = c.profile.name.trim().split(/\s+/)[0] || "there";
@@ -68,7 +70,7 @@ export function Home({
               Tally
             </p>
             <h1 className="mt-1.5 font-display text-[1.9rem] leading-tight font-bold tracking-tight text-ink">
-              Hi, {firstName}.
+              {t("Hi, {name}.", { name: firstName })}
             </h1>
             {c.profile.property && (
               <p className="mt-0.5 text-[0.92rem] text-ink-soft">
@@ -80,7 +82,7 @@ export function Home({
             type="button"
             onClick={onOpenSettings}
             className="pressable grid size-10 place-items-center rounded-full border border-line bg-surface text-ink-soft ring-soft hover:text-ink"
-            aria-label="Settings"
+            aria-label={t("Settings")}
           >
             <Settings2 className="size-5" />
           </button>
@@ -94,13 +96,13 @@ export function Home({
           <Stat
             icon={<Users className="size-4" />}
             value={String(tenants.length)}
-            label="Tenants"
+            label={t("Tenants")}
             onClick={onOpenTenants}
           />
           <Stat
             icon={<Receipt className="size-4" />}
             value={String(invoices.length)}
-            label="Invoices"
+            label={t("Invoices")}
             onClick={onOpenInvoices}
           />
         </div>
@@ -114,7 +116,7 @@ export function Home({
             <div className="mb-2.5 flex items-center gap-2">
               <Gauge className="size-3.5 text-brand" />
               <h2 className="text-[0.8rem] font-medium tracking-wide text-ink-soft uppercase">
-                To bill this month
+                {t("To bill this month")}
               </h2>
               <span className="nums ml-auto text-[0.8rem] text-faint">
                 {todos.length}
@@ -139,7 +141,7 @@ export function Home({
                 onClick={onOpenBilling}
                 className="pressable mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-2xl border border-line bg-surface py-2.5 text-[0.85rem] font-medium text-brand ring-card hover:bg-secondary"
               >
-                View all {todos.length} to bill
+                {t("View all {n} to bill", { n: todos.length })}
                 <ArrowRight className="size-4" />
               </button>
             )}
@@ -159,12 +161,12 @@ export function Home({
                 <TriangleAlert className="size-3.5" />
               </span>
               <h2 className="text-[0.8rem] font-semibold tracking-wide text-ink uppercase">
-                Needs attention
+                {t("Needs attention")}
               </h2>
               <span className="ml-auto text-[0.8rem] font-medium text-ink-soft">
-                {overdueCount > 0 && `${overdueCount} overdue`}
+                {overdueCount > 0 && t("{n} overdue", { n: overdueCount })}
                 {overdueCount > 0 && dueSoonCount > 0 && " · "}
-                {dueSoonCount > 0 && `${dueSoonCount} due soon`}
+                {dueSoonCount > 0 && t("{n} due soon", { n: dueSoonCount })}
               </span>
             </div>
             <ul className="mt-3 space-y-1.5">
@@ -207,22 +209,29 @@ export function Home({
         >
           <ActionCard
             icon={<UserPlus className="size-5" />}
-            title={tenants.length === 0 ? "Add a tenant" : "Manage tenants"}
+            title={
+              tenants.length === 0 ? t("Add a tenant") : t("Manage tenants")
+            }
             sub={
               tenants.length === 0
-                ? "Name, phone & their monthly rent"
-                : `${tenants.length} tenant${tenants.length > 1 ? "s" : ""} — tap to view or add`
+                ? t("Name, phone & their monthly rent")
+                : t(
+                    tenants.length > 1
+                      ? "{count} tenants — tap to view or add"
+                      : "{count} tenant — tap to view or add",
+                    { count: tenants.length },
+                  )
             }
             tone="brand"
             onClick={onOpenTenants}
           />
           <ActionCard
             icon={<Receipt className="size-5" />}
-            title="Generate an invoice"
-            sub="Enter readings & send in seconds"
+            title={t("Generate an invoice")}
+            sub={t("Enter readings & send in seconds")}
             tone="ink"
             disabled={tenants.length === 0}
-            disabledNote="Add a tenant first"
+            disabledNote={t("Add a tenant first")}
             onClick={onNewInvoice}
           />
         </div>
@@ -231,25 +240,25 @@ export function Home({
         <div className="animate-rise mt-7" style={{ animationDelay: "0.18s" }}>
           <div className="mb-2.5 flex items-center justify-between">
             <h2 className="text-[0.8rem] font-medium tracking-wide text-ink-soft uppercase">
-              Your rates
+              {t("Your rates")}
             </h2>
             <button
               type="button"
               onClick={onOpenSettings}
               className="pressable flex items-center gap-1 text-[0.82rem] font-medium text-brand"
             >
-              Edit
+              {t("Edit")}
             </button>
           </div>
           <div className="overflow-hidden rounded-3xl border border-line bg-surface ring-card">
             <RateRow
               icon={<Droplets className="size-4 text-sky-600" />}
-              label="Water"
+              label={t("Water")}
               value={utilLine(c.water)}
             />
             <RateRow
               icon={<Zap className="size-4 text-amber-500" />}
-              label="Electricity"
+              label={t("Electricity")}
               value={utilLine(c.electricity)}
             />
             {c.extras.map((e) => (
@@ -269,7 +278,7 @@ export function Home({
             <div className="mb-2.5 flex items-center gap-1.5">
               <QrCode className="size-3.5 text-faint" />
               <h2 className="text-[0.8rem] font-medium tracking-wide text-ink-soft uppercase">
-                Payment QR
+                {t("Payment QR")}
               </h2>
             </div>
             <button
@@ -286,7 +295,9 @@ export function Home({
                 />
               </div>
               <p className="text-[0.88rem] leading-relaxed text-ink-soft">
-                Shown on every invoice so tenants can scan and pay you directly.
+                {t(
+                  "Shown on every invoice so tenants can scan and pay you directly.",
+                )}
               </p>
               <ArrowRight className="size-4 shrink-0 text-faint" />
             </button>
@@ -300,7 +311,7 @@ export function Home({
           style={{ animationDelay: "0.24s" }}
         >
           <RotateCcw className="size-3.5" />
-          Everything stays on this device.
+          {t("Everything stays on this device.")}
         </p>
       </div>
     </MobileFrame>

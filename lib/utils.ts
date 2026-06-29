@@ -14,6 +14,16 @@ export function formatUSD(n: number) {
   }).format(Number.isFinite(n) ? n : 0);
 }
 
+/**
+ * Deep link to message a tenant on Telegram by phone. Telegram only resolves a
+ * phone link in full international format (country code, no symbols), so this
+ * strips everything but digits. Returns null when there's no phone to link to.
+ */
+export function telegramHref(phone: string): string | null {
+  const digits = phone.replace(/\D/g, "");
+  return digits ? `https://t.me/+${digits}` : null;
+}
+
 /** Trim a meter quantity to at most 2 decimals without trailing zeros. */
 export function formatQty(n: number) {
   return (Math.round(n * 100) / 100).toLocaleString("en-US", {

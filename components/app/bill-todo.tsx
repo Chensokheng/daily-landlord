@@ -1,7 +1,9 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, DoorOpen, Phone, Send } from "lucide-react";
+import { useT } from "@/lib/i18n";
 import type { Tenant } from "@/lib/types";
+import { telegramHref } from "@/lib/utils";
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).slice(0, 2);
@@ -15,13 +17,6 @@ export function billUrgency(daysUntilDue: number): Urgency {
   if (daysUntilDue < 0) return "overdue";
   if (daysUntilDue <= 2) return "soon";
   return "upcoming";
-}
-
-/** Short magnitude label for the per-row badge (group header gives context). */
-function shortDueLabel(days: number) {
-  if (days < 0) return `${Math.abs(days)}d`;
-  if (days === 0) return "today";
-  return `${days}d`;
 }
 
 /**
@@ -39,8 +34,15 @@ export function BillTodoRow({
   daysUntilDue: number;
   onGenerate: (tenant: Tenant, monthKey: string) => void;
 }) {
+  const t = useT();
   const urgency = billUrgency(daysUntilDue);
-  const subtitle = tenant.unit || tenant.phone;
+  const telegram = telegramHref(tenant.phone);
+  const dueLabel =
+    daysUntilDue < 0
+      ? t("{n}d late", { n: Math.abs(daysUntilDue) })
+      : daysUntilDue === 0
+        ? t("due today")
+        : t("in {n}d", { n: daysUntilDue });
   const badgeTone =
     urgency === "overdue"
       ? "text-destructive"
@@ -57,15 +59,39 @@ export function BillTodoRow({
         <p className="truncate font-display text-[1rem] font-semibold text-ink">
           {tenant.name}
         </p>
-        {subtitle && (
-          <p className="truncate text-[0.78rem] text-faint">{subtitle}</p>
-        )}
+        <p className="mt-0.5 flex items-center gap-1.5 truncate text-[0.78rem] text-faint">
+          {tenant.unit ? (
+            <>
+              <DoorOpen className="size-3 shrink-0" />
+              {t("Unit {n}", { n: tenant.unit })}
+            </>
+          ) : tenant.phone ? (
+            <>
+              <Phone className="size-3 shrink-0" />
+              {tenant.phone}
+            </>
+          ) : (
+            t("Ready to bill")
+          )}
+        </p>
       </div>
 
+      {telegram && (
+        <a
+          href={telegram}
+          target="_blank"
+          rel="noreferrer"
+          className="pressable relative z-10 grid size-9 shrink-0 place-items-center rounded-xl border border-line bg-surface text-[#229ED9] hover:bg-secondary"
+          aria-label={`Message ${tenant.name} on Telegram`}
+        >
+          <Send className="size-4" />
+        </a>
+      )}
+
       <span
-        className={`nums shrink-0 text-[0.8rem] font-semibold ${badgeTone}`}
+        className={`nums shrink-0 text-[0.78rem] font-semibold ${badgeTone}`}
       >
-        {shortDueLabel(daysUntilDue)}
+        {dueLabel}
       </span>
       <ChevronRight className="size-4 shrink-0 text-faint" />
 

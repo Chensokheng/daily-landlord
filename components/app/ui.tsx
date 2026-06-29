@@ -81,6 +81,77 @@ export function Sheet({
 }
 
 /* ------------------------------------------------------------------ */
+/* Confirm dialog — centered modal for destructive / important actions */
+/* ------------------------------------------------------------------ */
+
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
+  destructive = false,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  title: string;
+  message: React.ReactNode;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  destructive?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  React.useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center px-6">
+      <button
+        type="button"
+        aria-label="Cancel"
+        onClick={onCancel}
+        className="animate-fade absolute inset-0 bg-ink/30 backdrop-blur-[2px]"
+      />
+      <div className="animate-fade relative w-full max-w-[22rem] rounded-[1.6rem] border border-line bg-paper p-6 shadow-[0_20px_60px_-20px_oklch(0.24_0.024_257/0.4)]">
+        <h2 className="font-display text-[1.2rem] font-bold tracking-tight text-ink">
+          {title}
+        </h2>
+        <p className="mt-2 text-[0.92rem] leading-relaxed text-ink-soft">
+          {message}
+        </p>
+        <div className="mt-6 flex gap-2.5">
+          <Btn full variant="ghost" onClick={onCancel}>
+            {cancelLabel}
+          </Btn>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={cn(
+              "pressable inline-flex h-13 w-full items-center justify-center gap-2 rounded-2xl px-5 text-[0.95rem] font-medium tracking-tight text-white outline-none",
+              destructive
+                ? "bg-destructive hover:bg-destructive/90"
+                : "bg-brand ring-brand hover:bg-brand-ink",
+            )}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Buttons                                                            */
 /* ------------------------------------------------------------------ */
 

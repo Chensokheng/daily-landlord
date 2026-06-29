@@ -19,6 +19,7 @@ import {
   Trash2,
   TriangleAlert,
   Users,
+  X,
   Zap,
 } from "lucide-react";
 import * as React from "react";
@@ -41,6 +42,7 @@ import {
   parseDueTs,
   statusLabel,
 } from "@/lib/due";
+import { useT } from "@/lib/i18n";
 import {
   computeInvoice,
   type InvoiceDraft,
@@ -49,9 +51,15 @@ import {
 import { seedMockInvoices } from "@/lib/seed";
 import type { Invoice, LandlordProfile, Tenant } from "@/lib/types";
 import { cn, formatQty, formatUSD } from "@/lib/utils";
-import { Btn, Field, MobileFrame, Segmented, Sheet, Switch } from "./ui";
-
-type Mode = "list" | "build" | "view";
+import {
+  Btn,
+  ConfirmDialog,
+  Field,
+  MobileFrame,
+  Segmented,
+  Sheet,
+  Switch,
+} from "./ui";
 
 const IS_DEV = process.env.NODE_ENV !== "production";
 
@@ -60,69 +68,26 @@ export interface InvoiceSeed {
   periodKey?: string;
 }
 
-export function Invoices({
-  onBack,
-  initialMode = "list",
-  seed,
-}: {
-  onBack: () => void;
-  initialMode?: "list" | "build";
-  seed?: InvoiceSeed;
-}) {
-  const { data: invoices = [] } = useInvoices();
-  const [mode, setMode] = React.useState<Mode>(initialMode);
-  const [viewId, setViewId] = React.useState<string | null>(null);
-
-  if (mode === "build") {
-    return (
-      <InvoiceBuilder
-        seed={seed}
-        onCancel={() => setMode("list")}
-        onSaved={(inv) => {
-          setViewId(inv.id);
-          setMode("view");
-        }}
-        onOpenInvoice={(id) => {
-          setViewId(id);
-          setMode("view");
-        }}
-      />
-    );
-  }
-
-  if (mode === "view" && viewId) {
-    const inv = invoices.find((i) => i.id === viewId);
-    if (inv)
-      return <InvoiceView invoice={inv} onBack={() => setMode("list")} />;
-  }
-
-  return (
-    <InvoiceList
-      onBack={onBack}
-      onNew={() => setMode("build")}
-      onOpen={(id) => {
-        setViewId(id);
-        setMode("view");
-      }}
-    />
-  );
-}
-
 /* ------------------------------------------------------------------ */
 /* List                                                               */
 /* ------------------------------------------------------------------ */
 
-function InvoiceList({
+export function InvoiceList({
   onBack,
   onNew,
   onOpen,
+  tenantId,
+  onClearTenant,
 }: {
   onBack: () => void;
   onNew: () => void;
   onOpen: (id: string) => void;
+  tenantId?: string;
+  onClearTenant?: () => void;
 }) {
   const { data: invoices = [] } = useInvoices();
   const { data: tenants = [] } = useTenants();
+  const t = useT();
   const hasTenants = tenants.length > 0;
   const now = Date.now();
   const qc = useQueryClient();
@@ -132,17 +97,32 @@ function InvoiceList({
     qc.invalidateQueries({ queryKey: invoiceKeys.all });
   };
 
+  // Invoices for the tenant filter (if any), used as the working set.
+  const scoped = tenantId
+    ? invoices.filter((i) => i.tenantId === tenantId)
+    : invoices;
+  const filterName = tenantId
+    ? (scoped[0]?.tenantName ??
+      tenants.find((t) => t.id === tenantId)?.name ??
+      "tenant")
+    : null;
+
+  const thisMonth = currentMonthKey(now);
   const [query, setQuery] = React.useState("");
   const [filter, setFilter] = React.useState<"all" | "unpaid" | "paid">("all");
-  const [month, setMonth] = React.useState<string>("all");
+  // Default to the current month, but show a tenant's full history when scoped.
+  const [month, setMonth] = React.useState<string>(
+    tenantId ? "all" : thisMonth,
+  );
 
-  // Distinct billing months present, newest first — drives the month chips.
-  const months = [...new Set(invoices.map((i) => i.periodKey))]
+  // Distinct billing months present (always including this month), newest
+  // first — drives the month chips.
+  const months = [...new Set([thisMonth, ...scoped.map((i) => i.periodKey)])]
     .sort()
     .reverse();
 
   const q = query.trim().toLowerCase();
-  const shown = invoices.filter((inv) => {
+  const shown = scoped.filter((inv) => {
     if (filter === "paid" && inv.paidAt === null) return false;
     if (filter === "unpaid" && inv.paidAt !== null) return false;
     if (month !== "all" && inv.periodKey !== month) return false;
@@ -169,80 +149,110 @@ function InvoiceList({
 
   return (
     <MobileFrame>
-      <header className="flex items-center gap-3 px-6 pt-6 pb-2">
+      <header className="fixed inset-x-0 top-0 z-20 mx-auto flex w-full max-w-[460px] items-center gap-3 border-b border-line bg-paper/85 px-6 pt-6 pb-3 backdrop-blur">
         <button
           type="button"
           onClick={onBack}
           className="pressable -ml-1 grid size-9 place-items-center rounded-full text-ink-soft hover:bg-secondary"
-          aria-label="Back"
+          aria-label={t("Back")}
         >
           <ArrowLeft className="size-5" />
         </button>
         <h1 className="font-display text-[1.3rem] font-bold tracking-tight text-ink">
-          Invoices
+          {t("Invoices")}
         </h1>
-        {invoices.length > 0 && (
+        {scoped.length > 0 && (
           <span className="nums ml-auto rounded-full bg-secondary px-2.5 py-1 text-[0.8rem] font-medium text-ink-soft">
-            {invoices.length}
+            {scoped.length}
           </span>
         )}
       </header>
 
-      {invoices.length > 0 && (
-        <div className="space-y-3 px-6 pt-3 pb-1">
-          <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-faint" />
-            <Input
-              className="pl-11"
-              placeholder="Search tenant or unit"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-          <Segmented<"all" | "unpaid" | "paid">
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { value: "all", label: "All" },
-              { value: "unpaid", label: "Unpaid" },
-              { value: "paid", label: "Paid" },
-            ]}
-          />
-          {months.length > 1 && (
-            <div className="-mx-6 flex gap-2 overflow-x-auto px-6 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <MonthChip
-                active={month === "all"}
-                onClick={() => setMonth("all")}
-              >
-                All months
-              </MonthChip>
-              {months.map((k) => (
-                <MonthChip
-                  key={k}
-                  active={month === k}
-                  onClick={() => setMonth(k)}
-                >
-                  {monthKeyToLabel(k)}
-                </MonthChip>
-              ))}
-            </div>
+      {(tenantId || scoped.length > 0) && (
+        <div className="space-y-3 px-6 pt-24 pb-1">
+          {tenantId && (
+            <button
+              type="button"
+              onClick={onClearTenant}
+              className="pressable flex w-full items-center gap-2 rounded-2xl border border-brand/30 bg-brand-wash px-4 py-2.5 text-left"
+            >
+              <span className="text-[0.85rem] text-ink-soft">
+                {t("Invoices for")}{" "}
+                <span className="font-semibold text-brand-ink">
+                  {filterName}
+                </span>
+              </span>
+              <X className="ml-auto size-4 shrink-0 text-brand-ink" />
+            </button>
+          )}
+          {scoped.length > 0 && (
+            <>
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-faint" />
+                <Input
+                  className="pl-11"
+                  placeholder={t("Search tenant or unit")}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
+              <Segmented<"all" | "unpaid" | "paid">
+                value={filter}
+                onChange={setFilter}
+                options={[
+                  { value: "all", label: t("All") },
+                  { value: "unpaid", label: t("Unpaid") },
+                  { value: "paid", label: t("Paid") },
+                ]}
+              />
+              {months.length > 1 && (
+                <div className="-mx-6 flex gap-2 overflow-x-auto px-6 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <MonthChip
+                    active={month === "all"}
+                    onClick={() => setMonth("all")}
+                  >
+                    {t("All months")}
+                  </MonthChip>
+                  {months.map((k) => (
+                    <MonthChip
+                      key={k}
+                      active={month === k}
+                      onClick={() => setMonth(k)}
+                    >
+                      {monthKeyToLabel(k)}
+                    </MonthChip>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
 
-      <main className="flex flex-1 flex-col overflow-y-auto px-6 pt-3 pb-28">
-        {invoices.length === 0 ? (
+      <main
+        className={cn(
+          "flex flex-1 flex-col overflow-y-auto px-6 pb-28",
+          tenantId || scoped.length > 0 ? "pt-3" : "pt-24",
+        )}
+      >
+        {scoped.length === 0 ? (
           <div className="animate-rise flex flex-1 flex-col items-center justify-center text-center">
             <div className="grid size-16 place-items-center rounded-[1.3rem] border border-line bg-surface text-brand ring-card">
               <Receipt className="size-7" />
             </div>
             <h2 className="mt-5 font-display text-[1.4rem] font-bold tracking-tight text-ink">
-              No invoices yet
+              {t("No invoices yet")}
             </h2>
             <p className="mt-2 max-w-[18rem] text-[0.95rem] leading-relaxed text-ink-soft">
-              {hasTenants
-                ? "Punch in this month's meter readings and Tally builds the invoice for you."
-                : "Add a tenant first — then you can generate their invoice here."}
+              {tenantId
+                ? t("{name} has no invoices yet.", { name: filterName ?? "" })
+                : hasTenants
+                  ? t(
+                      "Punch in this month's meter readings and Tally builds the invoice for you.",
+                    )
+                  : t(
+                      "Add a tenant first — then you can generate their invoice here.",
+                    )}
             </p>
           </div>
         ) : shown.length === 0 ? (
@@ -251,10 +261,10 @@ function InvoiceList({
               <Search className="size-7" />
             </div>
             <h2 className="mt-5 font-display text-[1.4rem] font-bold tracking-tight text-ink">
-              No matches
+              {t("No matches")}
             </h2>
             <p className="mt-2 max-w-[18rem] text-[0.95rem] leading-relaxed text-ink-soft">
-              Try a different search or filter.
+              {t("Try a different search or filter.")}
             </p>
           </div>
         ) : (
@@ -314,7 +324,7 @@ function InvoiceList({
         <div className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-[460px] space-y-2 border-t border-line bg-paper/85 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
           <Btn full onClick={onNew}>
             <Receipt className="size-5" />
-            New invoice
+            {t("New invoice")}
           </Btn>
           {IS_DEV && (
             <button
@@ -360,7 +370,7 @@ function MonthChip({
 /* Builder                                                            */
 /* ------------------------------------------------------------------ */
 
-function InvoiceBuilder({
+export function InvoiceBuilder({
   seed,
   onCancel,
   onSaved,
@@ -375,6 +385,7 @@ function InvoiceBuilder({
   const { data: tenants = [] } = useTenants();
   const { data: invoices = [] } = useInvoices();
   const createInvoice = useCreateInvoice();
+  const t = useT();
 
   const [step, setStep] = React.useState<"form" | "preview">("form");
   // Land at the top whenever the builder opens or swaps form ⇄ preview.
@@ -392,6 +403,11 @@ function InvoiceBuilder({
   );
   const [dueDate, setDueDate] = React.useState("");
   const [includeRent, setIncludeRent] = React.useState(true);
+  const [excludedExtras, setExcludedExtras] = React.useState<string[]>([]);
+  const toggleExtra = (id: string) =>
+    setExcludedExtras((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   const [waterPrev, setWaterPrev] = React.useState(0);
   const [waterCur, setWaterCur] = React.useState(0);
   const [elecPrev, setElecPrev] = React.useState(0);
@@ -445,6 +461,7 @@ function InvoiceBuilder({
     includeRent,
     water: { previous: waterPrev, current: waterCur },
     electricity: { previous: elecPrev, current: elecCur },
+    excludedExtraIds: excludedExtras,
   };
   const computed = tenant
     ? computeInvoice(config, tenant, draft)
@@ -495,7 +512,7 @@ function InvoiceBuilder({
             <ArrowLeft className="size-5" />
           </button>
           <h1 className="font-display text-[1.3rem] font-bold tracking-tight text-ink">
-            Preview
+            {t("Preview")}
           </h1>
         </header>
 
@@ -520,7 +537,7 @@ function InvoiceBuilder({
             disabled={createInvoice.isPending}
           >
             <Check className="size-5" />
-            {createInvoice.isPending ? "Saving…" : "Save invoice"}
+            {createInvoice.isPending ? "Saving…" : t("Save invoice")}
           </Btn>
           <Btn
             full
@@ -529,7 +546,7 @@ function InvoiceBuilder({
             disabled={createInvoice.isPending}
           >
             <BadgeCheck className="size-5" />
-            Save & mark paid
+            {t("Save & mark paid")}
           </Btn>
           <button
             type="button"
@@ -537,7 +554,7 @@ function InvoiceBuilder({
             className="pressable mx-auto flex items-center gap-1.5 py-1 text-[0.85rem] font-medium text-faint hover:text-ink"
           >
             <Pencil className="size-3.5" />
-            Keep editing
+            {t("Keep editing")}
           </button>
         </div>
       </MobileFrame>
@@ -557,7 +574,7 @@ function InvoiceBuilder({
           <ArrowLeft className="size-5" />
         </button>
         <h1 className="font-display text-[1.3rem] font-bold tracking-tight text-ink">
-          New invoice
+          {t("New invoice")}
         </h1>
       </header>
 
@@ -565,7 +582,7 @@ function InvoiceBuilder({
         <div className="space-y-6">
           {/* Tenant */}
           {tenants.length > 1 && (
-            <Field label="Tenant">
+            <Field label={t("Tenant")}>
               <TenantPicker
                 tenants={tenants}
                 value={tenantId}
@@ -576,7 +593,7 @@ function InvoiceBuilder({
           )}
 
           <div className="space-y-6">
-            <Field label="Billing month">
+            <Field label={t("Billing month")}>
               <Input
                 type="month"
                 value={periodKey}
@@ -586,7 +603,7 @@ function InvoiceBuilder({
                 className="w-[90%]"
               />
             </Field>
-            <Field label="Due date">
+            <Field label={t("Due date")}>
               <Input
                 type="date"
                 value={dueDate}
@@ -622,12 +639,12 @@ function InvoiceBuilder({
           {(showWater || showElec) && (
             <div className="space-y-3">
               <p className="text-[0.8rem] font-medium tracking-wide text-ink-soft uppercase">
-                Meter readings
+                {t("Meter readings")}
               </p>
               {showWater && (
                 <ReadingRow
                   icon={<Droplets className="size-4 text-sky-600" />}
-                  name="Water"
+                  name={t("Water")}
                   unit={config.water.unit}
                   rate={config.water.rate}
                   previous={waterPrev}
@@ -639,7 +656,7 @@ function InvoiceBuilder({
               {showElec && (
                 <ReadingRow
                   icon={<Zap className="size-4 text-amber-500" />}
-                  name="Electricity"
+                  name={t("Electricity")}
                   unit={config.electricity.unit}
                   rate={config.electricity.rate}
                   previous={elecPrev}
@@ -656,7 +673,7 @@ function InvoiceBuilder({
             <div className="flex items-center gap-3 rounded-3xl border border-line bg-surface p-4 ring-card">
               <div className="flex-1">
                 <p className="font-display text-[1.05rem] font-semibold text-ink">
-                  Include rent
+                  {t("Include rent")}
                 </p>
                 <p className="text-[0.82rem] text-faint">
                   {formatUSD(tenant.rent)} / month
@@ -666,9 +683,45 @@ function InvoiceBuilder({
             </div>
           )}
 
+          {/* Extra fees — toggle any off for this invoice */}
+          {config.extras.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-[0.8rem] font-medium tracking-wide text-ink-soft uppercase">
+                {t("Other charges")}
+              </p>
+              {config.extras.map((extra) => {
+                const included = !excludedExtras.includes(extra.id);
+                return (
+                  <div
+                    key={extra.id}
+                    className="flex items-center gap-3 rounded-3xl border border-line bg-surface p-4 ring-card"
+                  >
+                    <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-wash text-brand-ink">
+                      <Receipt className="size-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-display text-[1.02rem] font-semibold text-ink">
+                        {extra.name}
+                      </p>
+                      <p className="text-[0.82rem] text-faint">
+                        {formatUSD(extra.amount)}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={included}
+                      onChange={() => toggleExtra(extra.id)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Running total */}
           <div className="flex items-center justify-between rounded-3xl bg-ink px-5 py-4 text-white">
-            <span className="text-[0.92rem] text-white/70">Invoice total</span>
+            <span className="text-[0.92rem] text-white/70">
+              {t("Invoice total")}
+            </span>
             <span className="nums font-mono text-[1.4rem] font-bold">
               {formatUSD(computed.total)}
             </span>
@@ -678,7 +731,7 @@ function InvoiceBuilder({
 
       <div className="border-t border-line bg-paper/80 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
         <Btn full onClick={() => setStep("preview")}>
-          Review invoice
+          {t("Review invoice")}
           <ArrowRight className="size-5" />
         </Btn>
       </div>
@@ -705,6 +758,7 @@ function ReadingRow({
   onPrev: (n: number) => void;
   onCur: (n: number) => void;
 }) {
+  const t = useT();
   const usage = Math.max(0, current - previous);
   return (
     <div className="rounded-3xl border border-line bg-surface p-4 ring-card">
@@ -720,10 +774,10 @@ function ReadingRow({
         </span>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Previous">
+        <Field label={t("Previous")}>
           <NumField value={previous} onValueChange={onPrev} unit={unit} />
         </Field>
-        <Field label="Current">
+        <Field label={t("Current")}>
           <NumField value={current} onValueChange={onCur} unit={unit} />
         </Field>
       </div>
@@ -789,7 +843,7 @@ function NumField({
 /* Saved invoice view (with share/download)                            */
 /* ------------------------------------------------------------------ */
 
-function InvoiceView({
+export function InvoiceView({
   invoice,
   onBack,
 }: {
@@ -797,19 +851,20 @@ function InvoiceView({
   onBack: () => void;
 }) {
   const config = useConfig();
+  const t = useT();
   const del = useDeleteInvoice();
   const setPaid = useSetInvoicePaid();
   const docRef = React.useRef<HTMLDivElement>(null);
   const [busy, setBusy] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   const now = Date.now();
   const paid = Boolean(invoice.paidAt);
 
   const remove = async () => {
-    if (confirm("Delete this invoice? This can't be undone.")) {
-      await del.mutateAsync(invoice.id);
-      onBack();
-    }
+    setConfirmDelete(false);
+    await del.mutateAsync(invoice.id);
+    onBack();
   };
 
   const togglePaid = () => setPaid.mutate({ id: invoice.id, paid: !paid });
@@ -859,16 +914,16 @@ function InvoiceView({
           type="button"
           onClick={onBack}
           className="pressable -ml-1 grid size-9 place-items-center rounded-full text-ink-soft hover:bg-secondary"
-          aria-label="Back"
+          aria-label={t("Back")}
         >
           <ArrowLeft className="size-5" />
         </button>
         <h1 className="font-display text-[1.3rem] font-bold tracking-tight text-ink">
-          Invoice
+          {t("Invoice")}
         </h1>
         <button
           type="button"
-          onClick={remove}
+          onClick={() => setConfirmDelete(true)}
           className="pressable ml-auto grid size-9 place-items-center rounded-full text-faint hover:bg-destructive/10 hover:text-destructive"
           aria-label="Delete invoice"
         >
@@ -927,20 +982,37 @@ function InvoiceView({
           {paid ? (
             <>
               <RotateCcw className="size-4" />
-              Mark as unpaid
+              {t("Mark as unpaid")}
             </>
           ) : (
             <>
               <BadgeCheck className="size-5" />
-              Mark as paid
+              {t("Mark as paid")}
             </>
           )}
         </Btn>
         <Btn full variant="ghost" onClick={share} disabled={busy}>
           <Download className="size-5" />
-          {busy ? "Preparing…" : "Share / download"}
+          {busy ? "Preparing…" : t("Share / download")}
         </Btn>
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title={t("Delete invoice?")}
+        message={
+          <>
+            {t("This invoice for")}{" "}
+            <span className="font-medium text-ink">{invoice.tenantName}</span> ·{" "}
+            {invoice.periodLabel} {t("will be removed. This can't be undone.")}
+          </>
+        }
+        confirmLabel={t("Delete")}
+        cancelLabel={t("Cancel")}
+        destructive
+        onConfirm={remove}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </MobileFrame>
   );
 }
@@ -1161,9 +1233,10 @@ function initials(name: string) {
 }
 
 function BilledBadge() {
+  const tr = useT();
   return (
     <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[0.68rem] font-semibold text-amber-700">
-      Billed
+      {tr("Billed")}
     </span>
   );
 }
@@ -1180,6 +1253,7 @@ function TenantPicker({
   /** Tenant ids already invoiced for the selected billing month. */
   billedIds: Set<string>;
 }) {
+  const tr = useT();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const selected = tenants.find((t) => t.id === value);
@@ -1215,21 +1289,20 @@ function TenantPicker({
               ) : null}
             </>
           ) : (
-            <span className="text-faint">Select tenant</span>
+            <span className="text-faint">{tr("Select tenant")}</span>
           )}
         </span>
         {selected && billedIds.has(selected.id) && <BilledBadge />}
         <ChevronDown className="size-4 shrink-0 text-faint" />
       </button>
 
-      <Sheet open={open} onClose={close} title="Select tenant">
+      <Sheet open={open} onClose={close} title={tr("Select tenant")}>
         <div className="space-y-3 pb-2">
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-faint" />
             <Input
-              autoFocus
               className="pl-11"
-              placeholder="Search name, unit or phone"
+              placeholder={tr("Search name, unit or phone")}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -1237,7 +1310,7 @@ function TenantPicker({
           <ul className="max-h-[50vh] space-y-1.5 overflow-y-auto">
             {filtered.length === 0 ? (
               <li className="py-8 text-center text-[0.9rem] text-faint">
-                No tenants match.
+                {tr("No tenants match.")}
               </li>
             ) : (
               filtered.map((t) => {

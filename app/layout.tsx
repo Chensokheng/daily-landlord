@@ -24,6 +24,19 @@ export const metadata: Metadata = {
   title: "Tally — Tenant billing for landlords",
   description:
     "Configure your fees, add tenants, and generate clean utility invoices in seconds.",
+  applicationName: "Tally",
+  appleWebApp: {
+    capable: true,
+    title: "Tally",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -31,6 +44,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -42,7 +56,7 @@ export default function RootLayout({
     <html
       lang="en"
       className={cn(
-        "h-full antialiased",
+        "first-load h-full antialiased",
         geistSans.variable,
         geistMono.variable,
         display.variable,

@@ -261,6 +261,15 @@
   animation: fadeIn 0.24s ease both;
 }
 
+/* Entrance animations play only on the very first load. `first-load` is set on
+   <html> at boot and removed shortly after, so client-side navigation (incl.
+   browser back) never replays them. Sheets/fades stay animated — they're
+   interactions, not page entrances. */
+html:not(.first-load) .animate-step,
+html:not(.first-load) .animate-rise {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-step,
   .animate-rise,

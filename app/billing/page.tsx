@@ -2,10 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { AppGate } from "@/components/app/app-gate";
-import { Home } from "@/components/app/home";
+import { Billing } from "@/components/app/billing";
 import type { InvoiceSeed } from "@/components/app/invoices";
 
-/** Build the /invoices/new URL for a "new invoice" jump, carrying any seed. */
 function newInvoiceHref(seed?: InvoiceSeed): string {
   const p = new URLSearchParams();
   if (seed?.tenantId) p.set("tenant", seed.tenantId);
@@ -14,15 +13,12 @@ function newInvoiceHref(seed?: InvoiceSeed): string {
   return qs ? `/invoices/new?${qs}` : "/invoices/new";
 }
 
-export default function HomePage() {
+export default function BillingPage() {
   const router = useRouter();
   return (
     <AppGate>
-      <Home
-        onOpenTenants={() => router.push("/tenants")}
-        onOpenInvoices={() => router.push("/invoices")}
-        onOpenBilling={() => router.push("/billing")}
-        onOpenSettings={() => router.push("/settings")}
+      <Billing
+        onBack={() => router.push("/")}
         onNewInvoice={(seed) => router.push(newInvoiceHref(seed))}
       />
     </AppGate>

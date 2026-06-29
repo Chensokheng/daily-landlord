@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   CalendarDays,
+  ChevronRight,
   DoorOpen,
   Droplets,
   Pencil,
@@ -11,6 +12,8 @@ import {
   Plus,
   StickyNote,
   Trash2,
+  UserCheck,
+  UserMinus,
   UserPlus,
   Users,
   Zap,
@@ -27,21 +30,44 @@ import {
   useUpdateTenant,
 } from "@/hooks/use-tenants";
 import { currentMonthKey, invoiceStatus, nextMonthKey } from "@/lib/due";
+import { useT } from "@/lib/i18n";
 import { seedMockTenants } from "@/lib/seed";
-import type { Tenant } from "@/lib/types";
+import { isTenantActive, type Tenant } from "@/lib/types";
 import { cn, formatUSD } from "@/lib/utils";
-import { Btn, Field, MobileFrame, MoneyField, Sheet, Switch } from "./ui";
+import {
+  Btn,
+  ConfirmDialog,
+  Field,
+  MobileFrame,
+  MoneyField,
+  Segmented,
+  Sheet,
+  Switch,
+} from "./ui";
 
 type SheetState = { mode: "add" } | { mode: "edit"; tenant: Tenant } | null;
+type StatusFilter = "active" | "inactive" | "all";
+type Confirm = { kind: "delete" | "moveout"; tenant: Tenant } | null;
 
 const IS_DEV = process.env.NODE_ENV !== "production";
 
-export function Tenants({ onBack }: { onBack: () => void }) {
+export function Tenants({
+  onBack,
+  onOpenInvoices,
+}: {
+  onBack: () => void;
+  onOpenInvoices: (tenantId: string) => void;
+}) {
   const { data: tenants = [] } = useTenants();
   const { data: invoices = [] } = useInvoices();
+  const t = useT();
   const del = useDeleteTenant();
+  const update = useUpdateTenant();
   const qc = useQueryClient();
   const [sheet, setSheet] = React.useState<SheetState>(null);
+  const [confirm, setConfirm] = React.useState<Confirm>(null);
+  const [statusFilter, setStatusFilter] =
+    React.useState<StatusFilter>("active");
 
   const seed = () => {
     seedMockTenants();
@@ -55,25 +81,46 @@ export function Tenants({ onBack }: { onBack: () => void }) {
       (i) => i.tenantId === id && invoiceStatus(i, now) === "overdue",
     ).length;
 
-  const remove = (t: Tenant) => {
-    if (confirm(`Remove ${t.name}? This can't be undone.`)) {
-      del.mutate(t.id);
+  const shown = tenants.filter((t) =>
+    statusFilter === "all"
+      ? true
+      : statusFilter === "active"
+        ? isTenantActive(t)
+        : !isTenantActive(t),
+  );
+
+  // Reactivating is harmless — do it directly; moving out asks first.
+  const toggleStatus = (t: Tenant) => {
+    if (isTenantActive(t)) {
+      setConfirm({ kind: "moveout", tenant: t });
+    } else {
+      update.mutate({ id: t.id, patch: { status: "active" } });
     }
+  };
+
+  const runConfirm = () => {
+    if (!confirm) return;
+    if (confirm.kind === "delete") {
+      del.mutate(confirm.tenant.id);
+    } else {
+      update.mutate({ id: confirm.tenant.id, patch: { status: "inactive" } });
+    }
+    setConfirm(null);
   };
 
   return (
     <MobileFrame>
-      <header className="flex items-center gap-3 px-6 pt-6 pb-2">
+      <header className="fixed inset-x-0 top-0 z-20 mx-auto flex w-full max-w-[460px] items-center gap-3 border-b border-line bg-paper/85 px-6 pt-6 pb-3 backdrop-blur">
         <button
           type="button"
           onClick={onBack}
           className="pressable -ml-1 grid size-9 place-items-center rounded-full text-ink-soft hover:bg-secondary"
-          aria-label="Back"
+          aria-label={t("Back")}
         >
           <ArrowLeft className="size-5" />
         </button>
         <h1 className="font-display text-[1.3rem] font-bold tracking-tight text-ink">
-          Tenants
+          {t("Tenants")}
         </h1>
         {tenants.length > 0 && (
           <span className="nums ml-auto rounded-full bg-secondary px-2.5 py-1 text-[0.8rem] font-medium text-ink-soft">
@@ -82,32 +129,55 @@ export function Tenants({ onBack }: { onBack: () => void }) {
         )}
       </header>
 
-      <main className="flex flex-1 flex-col overflow-y-auto px-6 pt-3 pb-4">
+      <main className="flex flex-1 flex-col overflow-y-auto px-6 pt-24 pb-28">
         {tenants.length === 0 ? (
           <EmptyState
             onAdd={() => setSheet({ mode: "add" })}
             onSeed={IS_DEV ? seed : undefined}
           />
         ) : (
-          <ul className="space-y-3">
-            {tenants.map((t) => (
-              <TenantCard
-                key={t.id}
-                tenant={t}
-                overdue={overdueByTenant(t.id)}
-                onEdit={() => setSheet({ mode: "edit", tenant: t })}
-                onDelete={() => remove(t)}
+          <>
+            <div className="pb-3">
+              <Segmented<StatusFilter>
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[
+                  { value: "active", label: t("Active") },
+                  { value: "inactive", label: t("Moved out") },
+                  { value: "all", label: t("All") },
+                ]}
               />
-            ))}
-          </ul>
+            </div>
+            {shown.length === 0 ? (
+              <p className="mt-10 text-center text-[0.9rem] text-faint">
+                {statusFilter === "inactive"
+                  ? t("No moved-out tenants.")
+                  : t("No tenants here.")}
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {shown.map((t) => (
+                  <TenantCard
+                    key={t.id}
+                    tenant={t}
+                    overdue={overdueByTenant(t.id)}
+                    onOpenInvoices={() => onOpenInvoices(t.id)}
+                    onEdit={() => setSheet({ mode: "edit", tenant: t })}
+                    onToggleStatus={() => toggleStatus(t)}
+                    onDelete={() => setConfirm({ kind: "delete", tenant: t })}
+                  />
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </main>
 
       {tenants.length > 0 && (
-        <div className="space-y-2 border-t border-line bg-paper/80 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
+        <div className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-[460px] space-y-2 border-t border-line bg-paper/85 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
           <Btn full onClick={() => setSheet({ mode: "add" })}>
             <Plus className="size-5" />
-            Add tenant
+            {t("Add tenant")}
           </Btn>
           {IS_DEV && (
             <button
@@ -124,7 +194,7 @@ export function Tenants({ onBack }: { onBack: () => void }) {
       <Sheet
         open={sheet !== null}
         onClose={() => setSheet(null)}
-        title={sheet?.mode === "edit" ? "Edit tenant" : "New tenant"}
+        title={sheet?.mode === "edit" ? t("Edit tenant") : t("New tenant")}
       >
         {sheet && (
           <TenantForm
@@ -133,6 +203,33 @@ export function Tenants({ onBack }: { onBack: () => void }) {
           />
         )}
       </Sheet>
+
+      <ConfirmDialog
+        open={confirm !== null}
+        title={
+          confirm?.kind === "delete"
+            ? t("Delete tenant?")
+            : t("Mark as moved out?")
+        }
+        message={
+          confirm?.kind === "delete"
+            ? t(
+                "{name} will be removed for good. Past invoices stay. Can't be undone.",
+                { name: confirm.tenant.name },
+              )
+            : confirm
+              ? t(
+                  "{name} will stop showing in To bill. You can reactivate anytime.",
+                  { name: confirm.tenant.name },
+                )
+              : ""
+        }
+        confirmLabel={confirm?.kind === "delete" ? t("Delete") : t("Move out")}
+        cancelLabel={t("Cancel")}
+        destructive={confirm?.kind === "delete"}
+        onConfirm={runConfirm}
+        onCancel={() => setConfirm(null)}
+      />
     </MobileFrame>
   );
 }
@@ -148,22 +245,24 @@ function EmptyState({
   onAdd: () => void;
   onSeed?: () => void;
 }) {
+  const t = useT();
   return (
     <div className="animate-rise flex flex-1 flex-col items-center justify-center text-center">
       <div className="grid size-16 place-items-center rounded-[1.3rem] border border-line bg-surface text-brand ring-card">
         <Users className="size-7" />
       </div>
       <h2 className="mt-5 font-display text-[1.4rem] font-bold tracking-tight text-ink">
-        No tenants yet
+        {t("No tenants yet")}
       </h2>
       <p className="mt-2 max-w-[18rem] text-[0.95rem] leading-relaxed text-ink-soft">
-        Add the people you bill. Their rent and meter baselines feed straight
-        into invoices.
+        {t(
+          "Add the people you bill. Their rent and meter baselines feed straight into invoices.",
+        )}
       </p>
       <div className="mt-7 w-full max-w-[16rem]">
         <Btn full onClick={onAdd}>
           <UserPlus className="size-5" />
-          Add your first tenant
+          {t("Add your first tenant")}
         </Btn>
       </div>
       {onSeed && (
@@ -191,17 +290,35 @@ function initials(name: string) {
 function TenantCard({
   tenant: t,
   overdue,
+  onOpenInvoices,
   onEdit,
+  onToggleStatus,
   onDelete,
 }: {
   tenant: Tenant;
   overdue: number;
+  onOpenInvoices: () => void;
   onEdit: () => void;
+  onToggleStatus: () => void;
   onDelete: () => void;
 }) {
+  const tr = useT();
+  const active = isTenantActive(t);
+  const hasMeta =
+    t.startWater > 0 || t.startElectricity > 0 || t.moveInDate || t.notes;
+
   return (
-    <li className="animate-step rounded-3xl border border-line bg-surface p-4 ring-card">
-      <div className="flex items-center gap-3.5">
+    <li
+      className={cn(
+        "animate-step overflow-hidden rounded-3xl border border-line bg-surface ring-card",
+        !active && "opacity-75",
+      )}
+    >
+      <button
+        type="button"
+        onClick={onOpenInvoices}
+        className="pressable flex w-full items-center gap-3.5 px-4 py-4 text-left"
+      >
         <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-brand-wash font-display text-[1.05rem] font-bold text-brand-ink">
           {initials(t.name)}
         </span>
@@ -210,10 +327,16 @@ function TenantCard({
             <p className="truncate font-display text-[1.1rem] font-semibold text-ink">
               {t.name}
             </p>
-            {overdue > 0 && (
-              <span className="shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 text-[0.72rem] font-semibold text-destructive">
-                {overdue} overdue
+            {!active ? (
+              <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[0.72rem] font-semibold text-faint">
+                {tr("Moved out")}
               </span>
+            ) : (
+              overdue > 0 && (
+                <span className="shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 text-[0.72rem] font-semibold text-destructive">
+                  {tr("{n} overdue", { n: overdue })}
+                </span>
+              )
             )}
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[0.84rem] text-faint">
@@ -235,15 +358,13 @@ function TenantCard({
           <p className="nums font-mono text-[1.05rem] font-semibold text-ink">
             {formatUSD(t.rent)}
           </p>
-          <p className="text-[0.74rem] text-faint">rent / mo</p>
+          <p className="text-[0.74rem] text-faint">{tr("rent / mo")}</p>
         </div>
-      </div>
+        <ChevronRight className="size-4 shrink-0 text-faint" />
+      </button>
 
-      {(t.startWater > 0 ||
-        t.startElectricity > 0 ||
-        t.moveInDate ||
-        t.notes) && (
-        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3">
+      {hasMeta && (
+        <div className="flex flex-wrap gap-1.5 border-t border-line px-4 py-3">
           {t.startWater > 0 && (
             <Chip icon={<Droplets className="size-3 text-sky-600" />}>
               {t.startWater} start
@@ -265,22 +386,39 @@ function TenantCard({
         </div>
       )}
 
-      <div className="mt-3 flex gap-2 border-t border-line pt-3">
+      <div className="flex gap-2 border-t border-line px-4 py-3">
         <button
           type="button"
           onClick={onEdit}
           className="pressable flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-secondary py-2 text-[0.85rem] font-medium text-ink-soft hover:text-ink"
         >
           <Pencil className="size-3.5" />
-          Edit
+          {tr("Edit")}
+        </button>
+        <button
+          type="button"
+          onClick={onToggleStatus}
+          className="pressable flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-secondary py-2 text-[0.85rem] font-medium text-ink-soft hover:text-ink"
+        >
+          {active ? (
+            <>
+              <UserMinus className="size-3.5" />
+              {tr("Moved out")}
+            </>
+          ) : (
+            <>
+              <UserCheck className="size-3.5" />
+              {tr("Reactivate")}
+            </>
+          )}
         </button>
         <button
           type="button"
           onClick={onDelete}
-          className="pressable flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-[0.85rem] font-medium text-faint hover:bg-destructive/10 hover:text-destructive"
+          className="pressable flex items-center justify-center rounded-xl px-3 py-2 text-faint hover:bg-destructive/10 hover:text-destructive"
+          aria-label={`${tr("Delete")} ${t.name}`}
         >
-          <Trash2 className="size-3.5" />
-          Delete
+          <Trash2 className="size-4" />
         </button>
       </div>
     </li>
@@ -314,6 +452,7 @@ function TenantForm({
   onDone: () => void;
 }) {
   const { water, electricity } = useConfig();
+  const t = useT();
   const create = useCreateTenant();
   const update = useUpdateTenant();
   const editing = Boolean(tenant);
@@ -368,9 +507,8 @@ function TenantForm({
 
   return (
     <div className="space-y-5 pb-2">
-      <Field label="Name">
+      <Field label={t("Name")}>
         <Input
-          autoFocus
           placeholder="e.g. Dara Kim"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -378,19 +516,19 @@ function TenantForm({
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Room / unit" hint="optional">
+        <Field label={t("Room / unit")} hint={t("optional")}>
           <Input
             placeholder="e.g. 3A"
             value={unit}
             onChange={(e) => setUnit(e.target.value)}
           />
         </Field>
-        <Field label="Monthly rent" hint="optional">
+        <Field label={t("Monthly rent")} hint={t("optional")}>
           <MoneyField value={rent} onValueChange={setRent} />
         </Field>
       </div>
 
-      <Field label="Phone" hint="required">
+      <Field label={t("Phone")} hint={t("required")}>
         <Input
           type="tel"
           inputMode="tel"
@@ -403,14 +541,11 @@ function TenantForm({
       {(showWater || showElec) && (
         <div className="rounded-2xl border border-dashed border-line2 bg-surface/60 p-4">
           <p className="mb-3 text-[0.8rem] font-medium tracking-wide text-ink-soft uppercase">
-            Starting meter readings
-            <span className="ml-1.5 font-normal text-faint normal-case">
-              — optional baseline for the first invoice
-            </span>
+            {t("Starting meter readings")}
           </p>
           <div className="grid grid-cols-2 gap-3">
             {showWater && (
-              <Field label="Water">
+              <Field label={t("Water")}>
                 <MeterField
                   value={startWater}
                   onValueChange={setStartWater}
@@ -419,7 +554,7 @@ function TenantForm({
               </Field>
             )}
             {showElec && (
-              <Field label="Electricity">
+              <Field label={t("Electricity")}>
                 <MeterField
                   value={startElectricity}
                   onValueChange={setStartElectricity}
@@ -432,14 +567,14 @@ function TenantForm({
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Move-in date" hint="optional">
+        <Field label={t("Move-in date")} hint={t("optional")}>
           <Input
             type="date"
             value={moveInDate}
             onChange={(e) => setMoveInDate(e.target.value)}
           />
         </Field>
-        <Field label="Rent due day" hint="optional">
+        <Field label={t("Rent due day")} hint={t("optional")}>
           <Input
             type="number"
             inputMode="numeric"
@@ -459,17 +594,17 @@ function TenantForm({
         <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-3.5 ring-soft">
           <div className="flex-1">
             <p className="text-[0.95rem] font-medium text-ink">
-              Already paid for this month
+              {t("Already paid for this month")}
             </p>
             <p className="text-[0.8rem] text-faint">
-              Start the billing reminder next month instead.
+              {t("Start the billing reminder next month instead.")}
             </p>
           </div>
           <Switch checked={settledThisMonth} onChange={setSettledThisMonth} />
         </div>
       )}
 
-      <Field label="Notes" hint="optional">
+      <Field label={t("Notes")} hint={t("optional")}>
         <textarea
           placeholder="Deposit held, special terms…"
           value={notes}
@@ -480,7 +615,7 @@ function TenantForm({
 
       <Btn full onClick={submit} disabled={!valid || busy} className="mt-1">
         <UserPlus className="size-5" />
-        {editing ? "Save changes" : "Save tenant"}
+        {editing ? t("Save changes") : t("Save tenant")}
       </Btn>
     </div>
   );

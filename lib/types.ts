@@ -52,9 +52,16 @@ export interface Tenant {
   dueDay: number;
   /** First month (yyyy-mm) Tally should nudge to bill — lets a mid-cycle, already-settled tenant skip the current month. */
   firstBillKey: string;
+  /** Lifecycle: "active" tenants are billed; "inactive" = moved out (kept for history). Legacy records with no value are treated as active. */
+  status?: "active" | "inactive";
   /** Optional free-text notes */
   notes: string;
   createdAt: number;
+}
+
+/** A tenant is active unless explicitly moved out (legacy records have no status). */
+export function isTenantActive(t: Tenant): boolean {
+  return t.status !== "inactive";
 }
 
 export interface InvoiceLine {
@@ -92,8 +99,12 @@ export interface Invoice {
   };
 }
 
+export type Lang = "en" | "km";
+
 export interface AppState {
   onboarded: boolean;
+  /** UI language — client-side only, persisted with everything else. */
+  lang: Lang;
   config: Config;
   tenants: Tenant[];
   invoices: Invoice[];
@@ -122,6 +133,7 @@ export const defaultConfig: Config = {
 
 export const defaultState: AppState = {
   onboarded: false,
+  lang: "en",
   config: defaultConfig,
   tenants: [],
   invoices: [],
