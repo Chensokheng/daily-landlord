@@ -3,6 +3,8 @@
 import {
   ArrowLeft,
   ArrowRight,
+  BadgeCheck,
+  CalendarClock,
   Check,
   ChevronRight,
   Download,
@@ -10,6 +12,7 @@ import {
   FileText,
   Pencil,
   Receipt,
+  RotateCcw,
   Trash2,
   Users,
   Zap,
@@ -21,8 +24,18 @@ import {
   useCreateInvoice,
   useDeleteInvoice,
   useInvoices,
+  useSetInvoicePaid,
 } from "@/hooks/use-invoices";
 import { useTenants } from "@/hooks/use-tenants";
+import {
+  currentMonthKey,
+  defaultDueDate,
+  invoiceStatus,
+  monthKeyAnchor,
+  monthKeyToLabel,
+  parseDueTs,
+  statusLabel,
+} from "@/lib/due";
 import {
   computeInvoice,
   type InvoiceDraft,
@@ -34,12 +47,19 @@ import { Btn, Field, MobileFrame, Switch } from "./ui";
 
 type Mode = "list" | "build" | "view";
 
+export interface InvoiceSeed {
+  tenantId?: string;
+  periodKey?: string;
+}
+
 export function Invoices({
   onBack,
   initialMode = "list",
+  seed,
 }: {
   onBack: () => void;
   initialMode?: "list" | "build";
+  seed?: InvoiceSeed;
 }) {
   const { data: invoices = [] } = useInvoices();
   const [mode, setMode] = React.useState<Mode>(initialMode);
@@ -48,6 +68,7 @@ export function Invoices({
   if (mode === "build") {
     return (
       <InvoiceBuilder
+        seed={seed}
         onCancel={() => setMode("list")}
         onSaved={(inv) => {
           setViewId(inv.id);
@@ -91,6 +112,7 @@ function InvoiceList({
   const { data: invoices = [] } = useInvoices();
   const { data: tenants = [] } = useTenants();
   const hasTenants = tenants.length > 0;
+  const now = Date.now();
 
   return (
     <MobileFrame>
@@ -149,9 +171,12 @@ function InvoiceList({
                       {inv.tenantUnit ? ` · ${inv.tenantUnit}` : ""}
                     </p>
                   </div>
-                  <span className="nums font-mono text-[1.05rem] font-semibold text-ink">
-                    {formatUSD(inv.total)}
-                  </span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="nums font-mono text-[1.05rem] font-semibold text-ink">
+                      {formatUSD(inv.total)}
+                    </span>
+                    <StatusBadge invoice={inv} now={now} />
+                  </div>
                   <ChevronRight className="size-4 text-faint" />
                 </button>
               </li>
@@ -176,17 +201,12 @@ function InvoiceList({
 /* Builder                                                            */
 /* ------------------------------------------------------------------ */
 
-function currentPeriod() {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    year: "numeric",
-  }).format(new Date());
-}
-
 function InvoiceBuilder({
+  seed,
   onCancel,
   onSaved,
 }: {
+  seed?: InvoiceSeed;
   onCancel: () => void;
   onSaved: (inv: Invoice) => void;
 }) {
@@ -196,8 +216,13 @@ function InvoiceBuilder({
   const createInvoice = useCreateInvoice();
 
   const [step, setStep] = React.useState<"form" | "preview">("form");
-  const [tenantId, setTenantId] = React.useState(tenants[0]?.id ?? "");
-  const [periodLabel, setPeriodLabel] = React.useState(currentPeriod);
+  const [tenantId, setTenantId] = React.useState(
+    seed?.tenantId ?? tenants[0]?.id ?? "",
+  );
+  const [periodKey, setPeriodKey] = React.useState(
+    seed?.periodKey ?? currentMonthKey(Date.now()),
+  );
+  const [dueDate, setDueDate] = React.useState("");
   const [includeRent, setIncludeRent] = React.useState(true);
   const [waterPrev, setWaterPrev] = React.useState(0);
   const [waterCur, setWaterCur] = React.useState(0);
@@ -205,6 +230,7 @@ function InvoiceBuilder({
   const [elecCur, setElecCur] = React.useState(0);
 
   const tenant = tenants.find((t) => t.id === tenantId) ?? tenants[0];
+  const periodLabel = monthKeyToLabel(periodKey);
 
   // When the tenant changes, prefill the "previous" readings from history.
   // biome-ignore lint/correctness/useExhaustiveDependencies: prefill only keyed on the selected tenant
@@ -216,6 +242,13 @@ function InvoiceBuilder({
     setElecPrev(prev.electricity);
     setElecCur(prev.electricity);
   }, [tenantId]);
+
+  // Default the due date from the tenant's due day within the billed month.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-default on tenant or period change
+  React.useEffect(() => {
+    if (!tenant) return;
+    setDueDate(defaultDueDate(tenant, monthKeyAnchor(periodKey)));
+  }, [tenantId, periodKey]);
 
   const showWater = config.water.enabled && config.water.mode === "metered";
   const showElec =
@@ -238,6 +271,9 @@ function InvoiceBuilder({
       tenantName: tenant.name,
       tenantUnit: tenant.unit,
       periodLabel,
+      periodKey,
+      dueDate,
+      paidAt: null,
       lines: computed.lines,
       total: computed.total,
       readings: computed.readings,
@@ -284,6 +320,7 @@ function InvoiceBuilder({
             tenantName={tenant.name}
             tenantUnit={tenant.unit}
             periodLabel={periodLabel}
+            dueDate={dueDate}
             lines={computed.lines}
             total={computed.total}
             dateLabel={formatDate(Date.now())}
@@ -352,13 +389,24 @@ function InvoiceBuilder({
             </div>
           )}
 
-          <Field label="Billing period">
-            <Input
-              value={periodLabel}
-              onChange={(e) => setPeriodLabel(e.target.value)}
-              placeholder="e.g. June 2026"
-            />
-          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Billing month">
+              <Input
+                type="month"
+                value={periodKey}
+                onChange={(e) =>
+                  setPeriodKey(e.target.value || currentMonthKey(Date.now()))
+                }
+              />
+            </Field>
+            <Field label="Due date">
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </Field>
+          </div>
 
           {/* Readings */}
           {(showWater || showElec) && (
@@ -540,8 +588,12 @@ function InvoiceView({
 }) {
   const config = useConfig();
   const del = useDeleteInvoice();
+  const setPaid = useSetInvoicePaid();
   const docRef = React.useRef<HTMLDivElement>(null);
   const [busy, setBusy] = React.useState(false);
+
+  const now = Date.now();
+  const paid = Boolean(invoice.paidAt);
 
   const remove = async () => {
     if (confirm("Delete this invoice? This can't be undone.")) {
@@ -549,6 +601,8 @@ function InvoiceView({
       onBack();
     }
   };
+
+  const togglePaid = () => setPaid.mutate({ id: invoice.id, paid: !paid });
 
   const share = async () => {
     if (!docRef.current || busy) return;
@@ -613,6 +667,31 @@ function InvoiceView({
       </header>
 
       <main className="flex-1 overflow-y-auto px-5 pt-3 pb-4">
+        {/* Status strip */}
+        <div
+          className={cn(
+            "mb-3 flex items-center gap-2.5 rounded-2xl px-4 py-3 text-[0.9rem]",
+            paid
+              ? "bg-ok-wash text-ok"
+              : invoiceStatus(invoice, now) === "overdue"
+                ? "bg-destructive/10 text-destructive"
+                : "bg-secondary text-ink-soft",
+          )}
+        >
+          {paid ? (
+            <BadgeCheck className="size-4 shrink-0" />
+          ) : (
+            <CalendarClock className="size-4 shrink-0" />
+          )}
+          <span className="font-medium">
+            {paid
+              ? `Paid ${invoice.paidAt ? `· ${formatDate(invoice.paidAt)}` : ""}`
+              : invoice.dueDate
+                ? `${statusLabel(invoice, now)} · due ${formatDate(parseDueTs(invoice.dueDate))}`
+                : "No due date set"}
+          </span>
+        </div>
+
         <InvoiceDoc
           ref={docRef}
           profile={config.profile}
@@ -620,14 +699,34 @@ function InvoiceView({
           tenantName={invoice.tenantName}
           tenantUnit={invoice.tenantUnit}
           periodLabel={invoice.periodLabel}
+          dueDate={invoice.dueDate}
+          paid={paid}
           lines={invoice.lines}
           total={invoice.total}
           dateLabel={formatDate(invoice.createdAt)}
         />
       </main>
 
-      <div className="border-t border-line bg-paper/80 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
-        <Btn full onClick={share} disabled={busy}>
+      <div className="space-y-2.5 border-t border-line bg-paper/80 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
+        <Btn
+          full
+          variant={paid ? "ghost" : "primary"}
+          onClick={togglePaid}
+          disabled={setPaid.isPending}
+        >
+          {paid ? (
+            <>
+              <RotateCcw className="size-4" />
+              Mark as unpaid
+            </>
+          ) : (
+            <>
+              <BadgeCheck className="size-5" />
+              Mark as paid
+            </>
+          )}
+        </Btn>
+        <Btn full variant="ghost" onClick={share} disabled={busy}>
           <Download className="size-5" />
           {busy ? "Preparing…" : "Share / download"}
         </Btn>
@@ -646,6 +745,27 @@ function formatDate(ts: number) {
     month: "short",
     year: "numeric",
   }).format(new Date(ts));
+}
+
+const STATUS_STYLES: Record<string, string> = {
+  paid: "bg-ok-wash text-ok",
+  overdue: "bg-destructive/10 text-destructive",
+  "due-soon": "bg-amber-100/70 text-amber-700",
+  upcoming: "bg-secondary text-faint",
+};
+
+function StatusBadge({ invoice, now }: { invoice: Invoice; now: number }) {
+  const status = invoiceStatus(invoice, now);
+  return (
+    <span
+      className={cn(
+        "nums inline-flex items-center rounded-full px-2 py-0.5 text-[0.72rem] font-semibold",
+        STATUS_STYLES[status],
+      )}
+    >
+      {statusLabel(invoice, now)}
+    </span>
+  );
 }
 
 /** Resolve once every <img> inside the node has finished loading & decoding. */
@@ -670,6 +790,8 @@ interface DocProps {
   tenantName: string;
   tenantUnit: string;
   periodLabel: string;
+  dueDate?: string;
+  paid?: boolean;
   lines: Invoice["lines"];
   total: number;
   dateLabel: string;
@@ -683,6 +805,8 @@ const InvoiceDoc = React.forwardRef<HTMLDivElement, DocProps>(
       tenantName,
       tenantUnit,
       periodLabel,
+      dueDate,
+      paid,
       lines,
       total,
       dateLabel,
@@ -717,6 +841,16 @@ const InvoiceDoc = React.forwardRef<HTMLDivElement, DocProps>(
               <p className="mt-1 font-display text-[1.05rem] font-semibold">
                 {periodLabel}
               </p>
+              {dueDate && (
+                <p className="mt-1 text-[0.78rem] text-white/65">
+                  Due {formatDate(parseDueTs(dueDate))}
+                </p>
+              )}
+              {paid && (
+                <span className="mt-2 inline-flex items-center gap-1 rounded-md bg-ok/20 px-2 py-0.5 text-[0.72rem] font-semibold tracking-wide text-ok uppercase">
+                  Paid
+                </span>
+              )}
             </div>
           </div>
         </div>

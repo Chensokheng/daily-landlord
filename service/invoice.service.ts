@@ -40,3 +40,10 @@ export async function deleteInvoice(id: string): Promise<void> {
     invoices: s.invoices.filter((i) => i.id !== id),
   }));
 }
+
+export async function setInvoicePaid(
+  id: string,
+  paid: boolean,
+): Promise<Invoice> {
+  return updateInvoice(id, { paidAt: paid ? Date.now() : null });
+}

@@ -49,3 +49,12 @@ export function useDeleteInvoice() {
     onSuccess: () => qc.invalidateQueries({ queryKey: invoiceKeys.all }),
   });
 }
+
+export function useSetInvoicePaid() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, paid }: { id: string; paid: boolean }) =>
+      svc.setInvoicePaid(id, paid),
+    onSuccess: () => qc.invalidateQueries({ queryKey: invoiceKeys.all }),
+  });
+}

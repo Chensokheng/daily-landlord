@@ -14,25 +14,54 @@ import {
   Users,
   Zap,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { useConfig } from "@/hooks/use-config";
+import { invoiceKeys, useInvoices } from "@/hooks/use-invoices";
 import {
+  tenantKeys,
   useCreateTenant,
   useDeleteTenant,
   useTenants,
   useUpdateTenant,
 } from "@/hooks/use-tenants";
+import { currentMonthKey, invoiceStatus, nextMonthKey } from "@/lib/due";
+import { seedMockTenants } from "@/lib/seed";
 import type { Tenant } from "@/lib/types";
 import { cn, formatUSD } from "@/lib/utils";
-import { Btn, Field, MobileFrame, MoneyField, Sheet } from "./ui";
+import {
+  Btn,
+  Field,
+  MobileFrame,
+  MoneyField,
+  Segmented,
+  Sheet,
+  Switch,
+} from "./ui";
 
 type SheetState = { mode: "add" } | { mode: "edit"; tenant: Tenant } | null;
 
+const IS_DEV = process.env.NODE_ENV !== "production";
+
 export function Tenants({ onBack }: { onBack: () => void }) {
   const { data: tenants = [] } = useTenants();
+  const { data: invoices = [] } = useInvoices();
   const del = useDeleteTenant();
+  const qc = useQueryClient();
   const [sheet, setSheet] = React.useState<SheetState>(null);
+
+  const seed = () => {
+    seedMockTenants();
+    qc.invalidateQueries({ queryKey: tenantKeys.all });
+    qc.invalidateQueries({ queryKey: invoiceKeys.all });
+  };
+
+  const now = Date.now();
+  const overdueByTenant = (id: string) =>
+    invoices.filter(
+      (i) => i.tenantId === id && invoiceStatus(i, now) === "overdue",
+    ).length;
 
   const remove = (t: Tenant) => {
     if (confirm(`Remove ${t.name}? This can't be undone.`)) {
@@ -63,13 +92,17 @@ export function Tenants({ onBack }: { onBack: () => void }) {
 
       <main className="flex flex-1 flex-col overflow-y-auto px-6 pt-3 pb-4">
         {tenants.length === 0 ? (
-          <EmptyState onAdd={() => setSheet({ mode: "add" })} />
+          <EmptyState
+            onAdd={() => setSheet({ mode: "add" })}
+            onSeed={IS_DEV ? seed : undefined}
+          />
         ) : (
           <ul className="space-y-3">
             {tenants.map((t) => (
               <TenantCard
                 key={t.id}
                 tenant={t}
+                overdue={overdueByTenant(t.id)}
                 onEdit={() => setSheet({ mode: "edit", tenant: t })}
                 onDelete={() => remove(t)}
               />
@@ -79,11 +112,20 @@ export function Tenants({ onBack }: { onBack: () => void }) {
       </main>
 
       {tenants.length > 0 && (
-        <div className="border-t border-line bg-paper/80 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
+        <div className="space-y-2 border-t border-line bg-paper/80 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
           <Btn full onClick={() => setSheet({ mode: "add" })}>
             <Plus className="size-5" />
             Add tenant
           </Btn>
+          {IS_DEV && (
+            <button
+              type="button"
+              onClick={seed}
+              className="pressable w-full rounded-xl py-2 text-[0.8rem] font-medium text-faint hover:text-ink"
+            >
+              Seed 20 mock tenants (dev)
+            </button>
+          )}
         </div>
       )}
 
@@ -107,7 +149,7 @@ export function Tenants({ onBack }: { onBack: () => void }) {
 /* Empty state                                                        */
 /* ------------------------------------------------------------------ */
 
-function EmptyState({ onAdd }: { onAdd: () => void }) {
+function EmptyState({ onAdd, onSeed }: { onAdd: () => void; onSeed?: () => void }) {
   return (
     <div className="animate-rise flex flex-1 flex-col items-center justify-center text-center">
       <div className="grid size-16 place-items-center rounded-[1.3rem] border border-line bg-surface text-brand ring-card">
@@ -126,6 +168,15 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
           Add your first tenant
         </Btn>
       </div>
+      {onSeed && (
+        <button
+          type="button"
+          onClick={onSeed}
+          className="pressable mt-3 text-[0.8rem] font-medium text-faint hover:text-ink"
+        >
+          Seed 20 mock tenants (dev)
+        </button>
+      )}
     </div>
   );
 }
@@ -141,10 +192,12 @@ function initials(name: string) {
 
 function TenantCard({
   tenant: t,
+  overdue,
   onEdit,
   onDelete,
 }: {
   tenant: Tenant;
+  overdue: number;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -155,9 +208,16 @@ function TenantCard({
           {initials(t.name)}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-display text-[1.1rem] font-semibold text-ink">
-            {t.name}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="truncate font-display text-[1.1rem] font-semibold text-ink">
+              {t.name}
+            </p>
+            {overdue > 0 && (
+              <span className="shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 text-[0.72rem] font-semibold text-destructive">
+                {overdue} overdue
+              </span>
+            )}
+          </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[0.84rem] text-faint">
             {t.unit && (
               <span className="inline-flex items-center gap-1">
@@ -269,6 +329,11 @@ function TenantForm({
     tenant?.startElectricity ?? 0,
   );
   const [moveInDate, setMoveInDate] = React.useState(tenant?.moveInDate ?? "");
+  const [dueDay, setDueDay] = React.useState(tenant?.dueDay ?? 0);
+  const [settledThisMonth, setSettledThisMonth] = React.useState(false);
+  const [readingSource, setReadingSource] = React.useState<"self" | "tenant">(
+    tenant?.readingSource ?? "self",
+  );
   const [notes, setNotes] = React.useState(tenant?.notes ?? "");
 
   const showWater = water.enabled && water.mode === "metered";
@@ -278,6 +343,14 @@ function TenantForm({
 
   const submit = async () => {
     if (!valid || busy) return;
+    const now = Date.now();
+    // Editing keeps the tenant's existing start; new tenants who are already
+    // settled this month start the reminder next month.
+    const firstBillKey = tenant
+      ? tenant.firstBillKey || currentMonthKey(now)
+      : settledThisMonth
+        ? nextMonthKey(now)
+        : currentMonthKey(now);
     const payload = {
       name: name.trim(),
       unit: unit.trim(),
@@ -286,6 +359,9 @@ function TenantForm({
       startWater: showWater ? startWater : 0,
       startElectricity: showElec ? startElectricity : 0,
       moveInDate,
+      dueDay,
+      firstBillKey,
+      readingSource,
       notes: notes.trim(),
     };
     if (tenant) {
@@ -358,6 +434,19 @@ function TenantForm({
               </Field>
             )}
           </div>
+
+          <div className="mt-4 border-t border-line2/60 pt-4">
+            <Field label="Who reads the meter each cycle?">
+              <Segmented<"self" | "tenant">
+                value={readingSource}
+                onChange={setReadingSource}
+                options={[
+                  { value: "self", label: "I read it" },
+                  { value: "tenant", label: "Tenant reports" },
+                ]}
+              />
+            </Field>
+          </div>
         </div>
       )}
 
@@ -369,7 +458,35 @@ function TenantForm({
             onChange={(e) => setMoveInDate(e.target.value)}
           />
         </Field>
+        <Field label="Rent due day" hint="optional">
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={31}
+            placeholder="e.g. 5"
+            value={dueDay ? String(dueDay) : ""}
+            onChange={(e) => {
+              const n = parseInt(e.target.value, 10);
+              setDueDay(Number.isFinite(n) ? Math.min(31, Math.max(0, n)) : 0);
+            }}
+          />
+        </Field>
       </div>
+
+      {!editing && dueDay >= 1 && (
+        <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-3.5 ring-soft">
+          <div className="flex-1">
+            <p className="text-[0.95rem] font-medium text-ink">
+              Already paid for this month
+            </p>
+            <p className="text-[0.8rem] text-faint">
+              Start the billing reminder next month instead.
+            </p>
+          </div>
+          <Switch checked={settledThisMonth} onChange={setSettledThisMonth} />
+        </div>
+      )}
 
       <Field label="Notes" hint="optional">
         <textarea

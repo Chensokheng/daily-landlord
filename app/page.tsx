@@ -2,14 +2,15 @@
 
 import { Receipt } from "lucide-react";
 import * as React from "react";
+import { Billing } from "@/components/app/billing";
 import { Home } from "@/components/app/home";
-import { Invoices } from "@/components/app/invoices";
+import { type InvoiceSeed, Invoices } from "@/components/app/invoices";
 import { Onboarding } from "@/components/app/onboarding";
 import { Tenants } from "@/components/app/tenants";
 import { useOnboarded } from "@/hooks/use-config";
 import { useHydrated } from "@/lib/store";
 
-type Screen = "home" | "tenants" | "invoices";
+type Screen = "home" | "tenants" | "invoices" | "billing";
 
 export default function Page() {
   const hydrated = useHydrated();
@@ -17,6 +18,9 @@ export default function Page() {
   const [screen, setScreen] = React.useState<Screen>("home");
   const [invoiceMode, setInvoiceMode] = React.useState<"list" | "build">(
     "list",
+  );
+  const [invoiceSeed, setInvoiceSeed] = React.useState<InvoiceSeed | undefined>(
+    undefined,
   );
 
   // Brief splash while we read persisted state — avoids a flash of the
@@ -33,27 +37,42 @@ export default function Page() {
 
   if (!onboarded) return <Onboarding />;
 
+  const buildInvoice = (seed?: InvoiceSeed) => {
+    setInvoiceSeed(seed);
+    setInvoiceMode("build");
+    setScreen("invoices");
+  };
+
   if (screen === "tenants") {
     return <Tenants onBack={() => setScreen("home")} />;
   }
 
+  if (screen === "billing") {
+    return (
+      <Billing onBack={() => setScreen("home")} onNewInvoice={buildInvoice} />
+    );
+  }
+
   if (screen === "invoices") {
     return (
-      <Invoices initialMode={invoiceMode} onBack={() => setScreen("home")} />
+      <Invoices
+        initialMode={invoiceMode}
+        seed={invoiceSeed}
+        onBack={() => setScreen("home")}
+      />
     );
   }
 
   return (
     <Home
       onOpenTenants={() => setScreen("tenants")}
-      onNewInvoice={() => {
-        setInvoiceMode("build");
-        setScreen("invoices");
-      }}
+      onNewInvoice={buildInvoice}
       onOpenInvoices={() => {
+        setInvoiceSeed(undefined);
         setInvoiceMode("list");
         setScreen("invoices");
       }}
+      onOpenBilling={() => setScreen("billing")}
     />
   );
 }

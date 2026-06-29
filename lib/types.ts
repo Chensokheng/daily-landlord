@@ -48,6 +48,12 @@ export interface Tenant {
   startElectricity: number;
   /** Optional ISO date (yyyy-mm-dd), "" if unset */
   moveInDate: string;
+  /** Day of the month rent is due (1–31), also the monthly billing cycle anchor. 0 = no cycle. */
+  dueDay: number;
+  /** First month (yyyy-mm) Tally should nudge to bill — lets a mid-cycle, already-settled tenant skip the current month. */
+  firstBillKey: string;
+  /** Who supplies the meter readings each cycle: the landlord reads, or the tenant reports. */
+  readingSource: "self" | "tenant";
   /** Optional free-text notes */
   notes: string;
   createdAt: number;
@@ -71,7 +77,14 @@ export interface Invoice {
   tenantName: string;
   tenantUnit: string;
   createdAt: number;
+  /** Display label for the billing period, e.g. "June 2026". */
   periodLabel: string;
+  /** Structured period the invoice covers (yyyy-mm) — used to detect "already billed this cycle". */
+  periodKey: string;
+  /** ISO date (yyyy-mm-dd) the payment is due. */
+  dueDate: string;
+  /** Timestamp the invoice was marked paid; null while unpaid. */
+  paidAt: number | null;
   lines: InvoiceLine[];
   total: number;
   /** Raw meter readings used, so the next period can prefill "previous". */

@@ -3,10 +3,12 @@
 import {
   ArrowRight,
   Droplets,
+  Gauge,
   QrCode,
   Receipt,
   RotateCcw,
   Settings2,
+  TriangleAlert,
   UserPlus,
   Users,
   Zap,
@@ -15,24 +17,39 @@ import type * as React from "react";
 import { useConfig, useConfigActions } from "@/hooks/use-config";
 import { useInvoices } from "@/hooks/use-invoices";
 import { useTenants } from "@/hooks/use-tenants";
+import { attentionItems, billingTodos, statusLabel } from "@/lib/due";
 import type { UtilityConfig } from "@/lib/types";
 import { formatUSD } from "@/lib/utils";
+import { BillTodoRow, useRequestReadings } from "./bill-todo";
+import type { InvoiceSeed } from "./invoices";
 import { MobileFrame } from "./ui";
 
 export function Home({
   onOpenTenants,
   onNewInvoice,
   onOpenInvoices,
+  onOpenBilling,
 }: {
   onOpenTenants: () => void;
-  onNewInvoice: () => void;
+  onNewInvoice: (seed?: InvoiceSeed) => void;
   onOpenInvoices: () => void;
+  onOpenBilling: () => void;
 }) {
   const c = useConfig();
   const { resetAll } = useConfigActions();
   const { data: tenants = [] } = useTenants();
   const { data: invoices = [] } = useInvoices();
+  const requestReadings = useRequestReadings();
   const firstName = c.profile.name.trim().split(/\s+/)[0] || "there";
+
+  const now = Date.now();
+  const todos = billingTodos(tenants, invoices, now);
+  const TODO_PREVIEW = 3;
+  const visibleTodos = todos.slice(0, TODO_PREVIEW);
+  const hiddenTodos = todos.length - visibleTodos.length;
+  const attention = attentionItems(invoices, now);
+  const overdueCount = attention.filter((a) => a.status === "overdue").length;
+  const dueSoonCount = attention.length - overdueCount;
 
   const utilLine = (u: UtilityConfig) =>
     !u.enabled
@@ -90,6 +107,102 @@ export function Home({
             onClick={onOpenInvoices}
           />
         </div>
+
+        {/* To bill this month */}
+        {todos.length > 0 && (
+          <div
+            className="animate-rise mt-5"
+            style={{ animationDelay: "0.08s" }}
+          >
+            <div className="mb-2.5 flex items-center gap-2">
+              <Gauge className="size-3.5 text-brand" />
+              <h2 className="text-[0.8rem] font-medium tracking-wide text-ink-soft uppercase">
+                To bill this month
+              </h2>
+              <span className="nums ml-auto text-[0.8rem] text-faint">
+                {todos.length}
+              </span>
+            </div>
+            <ul className="overflow-hidden rounded-3xl border border-line bg-surface ring-card">
+              {visibleTodos.map(({ tenant, monthKey, daysUntilDue }) => (
+                <BillTodoRow
+                  key={tenant.id}
+                  tenant={tenant}
+                  monthKey={monthKey}
+                  daysUntilDue={daysUntilDue}
+                  onRequestReadings={requestReadings}
+                  onGenerate={(t, mk) =>
+                    onNewInvoice({ tenantId: t.id, periodKey: mk })
+                  }
+                />
+              ))}
+            </ul>
+            {hiddenTodos > 0 && (
+              <button
+                type="button"
+                onClick={onOpenBilling}
+                className="pressable mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-2xl border border-line bg-surface py-2.5 text-[0.85rem] font-medium text-brand ring-card hover:bg-secondary"
+              >
+                View all {todos.length} to bill
+                <ArrowRight className="size-4" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Needs attention */}
+        {attention.length > 0 && (
+          <button
+            type="button"
+            onClick={onOpenInvoices}
+            className="pressable animate-rise mt-5 w-full rounded-3xl border border-destructive/20 bg-destructive/5 p-4 text-left ring-card"
+            style={{ animationDelay: "0.09s" }}
+          >
+            <div className="flex items-center gap-2">
+              <span className="grid size-6 place-items-center rounded-full bg-destructive/10 text-destructive">
+                <TriangleAlert className="size-3.5" />
+              </span>
+              <h2 className="text-[0.8rem] font-semibold tracking-wide text-ink uppercase">
+                Needs attention
+              </h2>
+              <span className="ml-auto text-[0.8rem] font-medium text-ink-soft">
+                {overdueCount > 0 && `${overdueCount} overdue`}
+                {overdueCount > 0 && dueSoonCount > 0 && " · "}
+                {dueSoonCount > 0 && `${dueSoonCount} due soon`}
+              </span>
+            </div>
+            <ul className="mt-3 space-y-1.5">
+              {attention.slice(0, 3).map(({ invoice, status }) => (
+                <li
+                  key={invoice.id}
+                  className="flex items-center gap-2 text-[0.9rem]"
+                >
+                  <span className="truncate font-medium text-ink">
+                    {invoice.tenantName}
+                  </span>
+                  <span className="truncate text-[0.82rem] text-faint">
+                    {invoice.periodLabel}
+                  </span>
+                  <span
+                    className={
+                      "nums ml-auto shrink-0 rounded-full px-2 py-0.5 text-[0.72rem] font-semibold " +
+                      (status === "overdue"
+                        ? "bg-destructive/10 text-destructive"
+                        : "bg-amber-100/70 text-amber-700")
+                    }
+                  >
+                    {statusLabel(invoice, now)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {attention.length > 3 && (
+              <p className="mt-2 text-[0.8rem] font-medium text-brand">
+                +{attention.length - 3} more →
+              </p>
+            )}
+          </button>
+        )}
 
         {/* Primary actions */}
         <div
