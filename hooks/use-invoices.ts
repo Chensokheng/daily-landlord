@@ -1,4 +1,4 @@
-"use client";
+
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as svc from "@/service/invoice.service";

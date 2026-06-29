@@ -1,4 +1,4 @@
-"use client";
+
 
 import { ArrowLeft, Info, RotateCcw } from "lucide-react";
 import type * as React from "react";

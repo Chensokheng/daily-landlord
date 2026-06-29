@@ -1,4 +1,4 @@
-"use client";
+
 
 import { ChevronRight, DoorOpen, Phone, Send } from "lucide-react";
 import { useT } from "@/lib/i18n";

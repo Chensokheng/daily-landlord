@@ -1,4 +1,4 @@
-"use client";
+
 
 import { X } from "lucide-react";
 import * as React from "react";
@@ -176,11 +176,11 @@ export function Btn({
         "focus-visible:ring-3 focus-visible:ring-brand-glow/40 disabled:pointer-events-none disabled:opacity-40",
         full && "w-full",
         variant === "primary" &&
-          "bg-brand text-white ring-brand hover:bg-brand-ink",
+        "bg-brand text-white ring-brand hover:bg-brand-ink",
         variant === "soft" &&
-          "bg-brand-wash text-brand-ink hover:bg-brand-wash/70",
+        "bg-brand-wash text-brand-ink hover:bg-brand-wash/70",
         variant === "ghost" &&
-          "bg-surface text-ink-soft border border-line hover:border-line2 hover:text-ink",
+        "bg-surface text-ink-soft border border-line hover:border-line2 hover:text-ink",
         className,
       )}
       {...props}

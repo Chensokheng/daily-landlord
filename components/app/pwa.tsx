@@ -1,70 +1,22 @@
-"use client";
+
 
 import { Download } from "lucide-react";
-import * as React from "react";
+import { useRegisterSW } from "virtual:pwa-register/react";
 import { useT } from "@/lib/i18n";
 
 /**
- * Registers the service worker (production only) and shows a small banner when
- * a new version is waiting, so the user can reload into it on demand instead of
- * being interrupted.
+ * Shows a small banner when vite-plugin-pwa has a new service worker waiting,
+ * so the user reloads into the update on their own terms. The plugin handles
+ * registration; we only render the prompt.
  */
 export function PwaManager() {
   const t = useT();
-  const [waiting, setWaiting] = React.useState<ServiceWorker | null>(null);
+  const {
+    needRefresh: [needRefresh],
+    updateServiceWorker,
+  } = useRegisterSW();
 
-  React.useEffect(() => {
-    if (
-      process.env.NODE_ENV !== "production" ||
-      !("serviceWorker" in navigator)
-    ) {
-      return;
-    }
-
-    navigator.serviceWorker
-      .register("/sw.js")
-      .then((reg) => {
-        // A worker already waiting from a previous visit.
-        if (reg.waiting && navigator.serviceWorker.controller) {
-          setWaiting(reg.waiting);
-        }
-        // A new worker that finished installing while the page is open.
-        reg.addEventListener("updatefound", () => {
-          const next = reg.installing;
-          if (!next) return;
-          next.addEventListener("statechange", () => {
-            if (
-              next.state === "installed" &&
-              navigator.serviceWorker.controller
-            ) {
-              setWaiting(next);
-            }
-          });
-        });
-      })
-      .catch(() => {
-        /* registration failed — app still works online */
-      });
-
-    // When the new worker takes control, reload once to pick up fresh assets.
-    let reloaded = false;
-    const onControllerChange = () => {
-      if (reloaded) return;
-      reloaded = true;
-      window.location.reload();
-    };
-    navigator.serviceWorker.addEventListener(
-      "controllerchange",
-      onControllerChange,
-    );
-    return () =>
-      navigator.serviceWorker.removeEventListener(
-        "controllerchange",
-        onControllerChange,
-      );
-  }, []);
-
-  if (!waiting) return null;
+  if (!needRefresh) return null;
 
   return (
     <div className="animate-fade fixed inset-x-0 bottom-0 z-[70] mx-auto w-full max-w-[460px] px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
@@ -75,7 +27,7 @@ export function PwaManager() {
         </p>
         <button
           type="button"
-          onClick={() => waiting.postMessage("SKIP_WAITING")}
+          onClick={() => updateServiceWorker(true)}
           className="pressable shrink-0 rounded-xl bg-white px-3.5 py-1.5 text-[0.85rem] font-semibold text-ink"
         >
           {t("Reload")}

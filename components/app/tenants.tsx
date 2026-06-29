@@ -1,4 +1,4 @@
-"use client";
+
 
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -214,14 +214,14 @@ export function Tenants({
         message={
           confirm?.kind === "delete"
             ? t(
-                "{name} will be removed for good. Past invoices stay. Can't be undone.",
-                { name: confirm.tenant.name },
-              )
+              "{name} will be removed for good. Past invoices stay. Can't be undone.",
+              { name: confirm.tenant.name },
+            )
             : confirm
               ? t(
-                  "{name} will stop showing in To bill. You can reactivate anytime.",
-                  { name: confirm.tenant.name },
-                )
+                "{name} will stop showing in To bill. You can reactivate anytime.",
+                { name: confirm.tenant.name },
+              )
               : ""
         }
         confirmLabel={confirm?.kind === "delete" ? t("Delete") : t("Move out")}

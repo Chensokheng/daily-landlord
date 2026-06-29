@@ -1,4 +1,4 @@
-"use client";
+
 
 import { ArrowLeft, Gauge, Search } from "lucide-react";
 import * as React from "react";

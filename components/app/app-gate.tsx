@@ -1,4 +1,4 @@
-"use client";
+
 
 import { Receipt } from "lucide-react";
 import type * as React from "react";

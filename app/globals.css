@@ -68,6 +68,11 @@
 }
 
 :root {
+  /* Font families (loaded via Google Fonts in index.html) */
+  --font-geist-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-geist-mono: "Geist Mono", ui-monospace, monospace;
+  --font-display: "Bricolage Grotesque", var(--font-geist-sans);
+
   /* App palette */
   --paper: oklch(0.988 0.004 247);
   --surface: oklch(1 0 0);

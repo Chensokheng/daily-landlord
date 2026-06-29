@@ -1,4 +1,4 @@
-"use client";
+
 
 import {
   ArrowRight,
@@ -216,11 +216,11 @@ export function Home({
               tenants.length === 0
                 ? t("Name, phone & their monthly rent")
                 : t(
-                    tenants.length > 1
-                      ? "{count} tenants — tap to view or add"
-                      : "{count} tenant — tap to view or add",
-                    { count: tenants.length },
-                  )
+                  tenants.length > 1
+                    ? "{count} tenants — tap to view or add"
+                    : "{count} tenant — tap to view or add",
+                  { count: tenants.length },
+                )
             }
             tone="brand"
             onClick={onOpenTenants}

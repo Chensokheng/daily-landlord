@@ -1,4 +1,4 @@
-"use client";
+
 
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -248,11 +248,11 @@ export function InvoiceList({
                 ? t("{name} has no invoices yet.", { name: filterName ?? "" })
                 : hasTenants
                   ? t(
-                      "Punch in this month's meter readings and Tally builds the invoice for you.",
-                    )
+                    "Punch in this month's meter readings and Tally builds the invoice for you.",
+                  )
                   : t(
-                      "Add a tenant first — then you can generate their invoice here.",
-                    )}
+                    "Add a tenant first — then you can generate their invoice here.",
+                  )}
             </p>
           </div>
         ) : shown.length === 0 ? (
@@ -430,8 +430,8 @@ export function InvoiceBuilder({
   // The tenant's existing invoice for this month, if any — newest first.
   const existingInvoice = tenant
     ? (invoices.find(
-        (i) => i.tenantId === tenant.id && i.periodKey === periodKey,
-      ) ?? null)
+      (i) => i.tenantId === tenant.id && i.periodKey === periodKey,
+    ) ?? null)
     : null;
 
   // When the tenant changes, prefill the "previous" readings from history.
@@ -1061,7 +1061,7 @@ async function ensureImagesReady(node: HTMLElement) {
           img.addEventListener("error", () => resolve(), { once: true });
         });
       }
-      await img.decode?.().catch(() => {});
+      await img.decode?.().catch(() => { });
     }),
   );
 }
@@ -1266,11 +1266,11 @@ function TenantPicker({
   const q = query.trim().toLowerCase();
   const filtered = q
     ? tenants.filter(
-        (t) =>
-          t.name.toLowerCase().includes(q) ||
-          t.unit.toLowerCase().includes(q) ||
-          t.phone.toLowerCase().includes(q),
-      )
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        t.unit.toLowerCase().includes(q) ||
+        t.phone.toLowerCase().includes(q),
+    )
     : tenants;
 
   return (
