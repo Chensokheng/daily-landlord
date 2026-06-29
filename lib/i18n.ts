@@ -1,5 +1,3 @@
-
-
 import * as React from "react";
 import { useAppStore } from "./store";
 import type { Lang } from "./types";
@@ -131,6 +129,7 @@ const km: Record<string, string> = {
   "Add a tenant first — then you can generate their invoice here.":
     "បន្ថែមអ្នកជួលជាមុនសិន — បន្ទាប់មកអ្នកអាចបង្កើតវិក្កយបត្ររបស់ពួកគេនៅទីនេះ។",
   "Search tenant or unit": "ស្វែងរក អ្នកជួល ឬឯកតា",
+  "Search name, unit or invoice no.": "ស្វែងរក ឈ្មោះ ឯកតា ឬលេខវិក្កយបត្រ",
   "Select tenant": "ជ្រើសរើសអ្នកជួល",
   "Billing month": "ខែចេញវិក្កយបត្រ",
   "Due date": "ថ្ងៃផុតកំណត់",

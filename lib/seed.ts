@@ -8,7 +8,11 @@ import {
   parseDueTs,
 } from "./due";
 import { makeId } from "./id";
-import { computeInvoice, type InvoiceDraft } from "./invoice";
+import {
+  computeInvoice,
+  formatInvoiceNumber,
+  type InvoiceDraft,
+} from "./invoice";
 import { useAppStore } from "./store";
 import type { Invoice, Tenant } from "./types";
 
@@ -286,7 +290,7 @@ export function seedMockInvoices({ months = 6 } = {}): Invoice[] {
     );
   }
 
-  const invoices: Invoice[] = [];
+  const invoices: Omit<Invoice, "number">[] = [];
 
   tenants.forEach((tenant, ti) => {
     // Walk readings forward from the tenant's baseline so each period's
@@ -335,6 +339,11 @@ export function seedMockInvoices({ months = 6 } = {}): Invoice[] {
 
   // Newest first, matching createInvoice's ordering.
   invoices.sort((a, b) => b.createdAt - a.createdAt);
-  useAppStore.setState({ invoices });
-  return invoices;
+  // Number them oldest → newest so the sequence tracks creation order.
+  const numbered: Invoice[] = invoices.map((inv, i) => ({
+    ...inv,
+    number: formatInvoiceNumber(invoices.length - i),
+  }));
+  useAppStore.setState({ invoices: numbered });
+  return numbered;
 }

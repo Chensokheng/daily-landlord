@@ -8,6 +8,31 @@ import type {
 } from "./types";
 import { formatQty, formatUSD } from "./utils";
 
+/** Prefix for generated invoice numbers, e.g. "INV-0007". */
+const INVOICE_PREFIX = "INV-";
+
+/** Render a 1-based sequence as a zero-padded invoice number. */
+export function formatInvoiceNumber(seq: number): string {
+  return `${INVOICE_PREFIX}${String(seq).padStart(4, "0")}`;
+}
+
+/**
+ * Next sequential invoice number, one past the highest already in use. Parsing
+ * the existing numbers (rather than counting) keeps numbers stable when an
+ * invoice is deleted — we never hand out the same number twice.
+ */
+export function nextInvoiceNumber(invoices: Pick<Invoice, "number">[]): string {
+  let max = 0;
+  for (const inv of invoices) {
+    const n = Number.parseInt(
+      inv.number?.replace(INVOICE_PREFIX, "") ?? "",
+      10,
+    );
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return formatInvoiceNumber(max + 1);
+}
+
 /** What the builder collects before we turn it into a saved Invoice. */
 export interface InvoiceDraft {
   periodLabel: string;

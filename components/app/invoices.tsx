@@ -1,5 +1,3 @@
-
-
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -23,6 +21,7 @@ import {
   Zap,
 } from "lucide-react";
 import * as React from "react";
+import { Confetti, type ConfettiRef } from "@/components/ui/confetti";
 import { Input } from "@/components/ui/input";
 import { useConfig } from "@/hooks/use-config";
 import {
@@ -46,6 +45,7 @@ import { useT } from "@/lib/i18n";
 import {
   computeInvoice,
   type InvoiceDraft,
+  nextInvoiceNumber,
   previousReadings,
 } from "@/lib/invoice";
 import { seedMockInvoices } from "@/lib/seed";
@@ -129,7 +129,8 @@ export function InvoiceList({
     if (!q) return true;
     return (
       inv.tenantName.toLowerCase().includes(q) ||
-      inv.tenantUnit.toLowerCase().includes(q)
+      inv.tenantUnit.toLowerCase().includes(q) ||
+      inv.number.toLowerCase().includes(q)
     );
   });
 
@@ -191,7 +192,7 @@ export function InvoiceList({
                 <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-faint" />
                 <Input
                   className="pl-11"
-                  placeholder={t("Search tenant or unit")}
+                  placeholder={t("Search name, unit or invoice no.")}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                 />
@@ -248,11 +249,11 @@ export function InvoiceList({
                 ? t("{name} has no invoices yet.", { name: filterName ?? "" })
                 : hasTenants
                   ? t(
-                    "Punch in this month's meter readings and Tally builds the invoice for you.",
-                  )
+                      "Punch in this month's meter readings and Tally builds the invoice for you.",
+                    )
                   : t(
-                    "Add a tenant first — then you can generate their invoice here.",
-                  )}
+                      "Add a tenant first — then you can generate their invoice here.",
+                    )}
             </p>
           </div>
         ) : shown.length === 0 ? (
@@ -297,10 +298,11 @@ export function InvoiceList({
                           <p className="truncate font-display text-[1.05rem] font-semibold text-ink">
                             {inv.tenantName}
                           </p>
-                          <p className="text-[0.84rem] text-faint">
+                          <p className="nums truncate text-[0.84rem] text-faint">
+                            <span className="font-mono">{inv.number}</span>
                             {inv.tenantUnit
-                              ? inv.tenantUnit
-                              : `Issued ${formatDate(inv.createdAt)}`}
+                              ? ` · ${inv.tenantUnit}`
+                              : ` · ${formatDate(inv.createdAt)}`}
                           </p>
                         </div>
                         <div className="flex flex-col items-end gap-1">
@@ -430,8 +432,8 @@ export function InvoiceBuilder({
   // The tenant's existing invoice for this month, if any — newest first.
   const existingInvoice = tenant
     ? (invoices.find(
-      (i) => i.tenantId === tenant.id && i.periodKey === periodKey,
-    ) ?? null)
+        (i) => i.tenantId === tenant.id && i.periodKey === periodKey,
+      ) ?? null)
     : null;
 
   // When the tenant changes, prefill the "previous" readings from history.
@@ -518,6 +520,7 @@ export function InvoiceBuilder({
 
         <main className="flex-1 overflow-y-auto px-5 pt-3 pb-4">
           <InvoiceDoc
+            number={nextInvoiceNumber(invoices)}
             profile={config.profile}
             paymentQr={config.paymentQr}
             tenantName={tenant.name}
@@ -843,6 +846,39 @@ function NumField({
 /* Saved invoice view (with share/download)                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Stable reference — the Confetti component rebuilds (and resets) its canvas
+ * whenever this object's identity changes, so it must NOT be created inline.
+ * Marking an invoice paid re-renders the view, and an inline object would wipe
+ * the in-flight confetti on that re-render.
+ */
+const CONFETTI_GLOBALS = { resize: true, useWorker: true } as const;
+
+/** A short celebratory confetti burst from the lower corners of the screen. */
+function celebrate(ref: ConfettiRef) {
+  if (!ref) return;
+  const base = { startVelocity: 45, spread: 80, ticks: 200, gravity: 0.9 };
+  ref.fire({
+    ...base,
+    particleCount: 90,
+    origin: { x: 0.15, y: 1 },
+    angle: 65,
+  });
+  ref.fire({
+    ...base,
+    particleCount: 90,
+    origin: { x: 0.85, y: 1 },
+    angle: 115,
+  });
+  ref.fire({
+    ...base,
+    particleCount: 60,
+    spread: 110,
+    startVelocity: 35,
+    origin: { x: 0.5, y: 1 },
+  });
+}
+
 export function InvoiceView({
   invoice,
   onBack,
@@ -855,6 +891,7 @@ export function InvoiceView({
   const del = useDeleteInvoice();
   const setPaid = useSetInvoicePaid();
   const docRef = React.useRef<HTMLDivElement>(null);
+  const confettiRef = React.useRef<ConfettiRef>(null);
   const [busy, setBusy] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
@@ -867,7 +904,12 @@ export function InvoiceView({
     onBack();
   };
 
-  const togglePaid = () => setPaid.mutate({ id: invoice.id, paid: !paid });
+  const togglePaid = () => {
+    const next = !paid;
+    setPaid.mutate({ id: invoice.id, paid: next });
+    // Celebrate only the unpaid → paid transition.
+    if (next) celebrate(confettiRef.current);
+  };
 
   const share = async () => {
     if (!docRef.current || busy) return;
@@ -885,14 +927,15 @@ export function InvoiceView({
       const opts = { pixelRatio: 2, backgroundColor: "#ffffff" } as const;
       await toPng(node, opts); // warm-up pass primes the image cache
       const dataUrl = await toPng(node, opts);
-      const fileName = `invoice-${invoice.tenantName.replace(/\s+/g, "-").toLowerCase()}-${invoice.periodLabel.replace(/\s+/g, "-").toLowerCase()}.png`;
+      const fileName = `${invoice.number}-${invoice.tenantName.replace(/\s+/g, "-").toLowerCase()}-${invoice.periodLabel.replace(/\s+/g, "-").toLowerCase()}.png`;
       const blob = await (await fetch(dataUrl)).blob();
       const file = new File([blob], fileName, { type: "image/png" });
 
       if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: `Invoice · ${invoice.periodLabel}`,
+          title: `Invoice ${invoice.number} · ${invoice.periodLabel}`,
+          text: `Invoice ${invoice.number} · ${invoice.tenantName} · ${invoice.periodLabel}`,
         });
       } else {
         const a = document.createElement("a");
@@ -959,6 +1002,7 @@ export function InvoiceView({
 
         <InvoiceDoc
           ref={docRef}
+          number={invoice.number}
           profile={config.profile}
           paymentQr={config.paymentQr}
           tenantName={invoice.tenantName}
@@ -996,6 +1040,13 @@ export function InvoiceView({
           {busy ? "Preparing…" : t("Share / download")}
         </Btn>
       </div>
+
+      <Confetti
+        ref={confettiRef}
+        manualstart
+        globalOptions={CONFETTI_GLOBALS}
+        className="pointer-events-none fixed inset-0 z-50 size-full"
+      />
 
       <ConfirmDialog
         open={confirmDelete}
@@ -1061,12 +1112,14 @@ async function ensureImagesReady(node: HTMLElement) {
           img.addEventListener("error", () => resolve(), { once: true });
         });
       }
-      await img.decode?.().catch(() => { });
+      await img.decode?.().catch(() => {});
     }),
   );
 }
 
 interface DocProps {
+  /** Invoice number shown on the document, e.g. "INV-0007". */
+  number: string;
   profile: LandlordProfile;
   paymentQr: string;
   tenantName: string;
@@ -1082,6 +1135,7 @@ interface DocProps {
 const InvoiceDoc = React.forwardRef<HTMLDivElement, DocProps>(
   function InvoiceDoc(
     {
+      number,
       profile,
       paymentQr,
       tenantName,
@@ -1120,7 +1174,10 @@ const InvoiceDoc = React.forwardRef<HTMLDivElement, DocProps>(
               <p className="text-[0.72rem] font-medium tracking-[0.22em] text-white/55 uppercase">
                 Invoice
               </p>
-              <p className="mt-1 font-display text-[1.05rem] font-semibold">
+              <p className="nums mt-1 font-mono text-[0.92rem] font-semibold tracking-wide">
+                {number}
+              </p>
+              <p className="mt-0.5 font-display text-[1.05rem] font-semibold">
                 {periodLabel}
               </p>
               {dueDate && (
@@ -1266,11 +1323,11 @@ function TenantPicker({
   const q = query.trim().toLowerCase();
   const filtered = q
     ? tenants.filter(
-      (t) =>
-        t.name.toLowerCase().includes(q) ||
-        t.unit.toLowerCase().includes(q) ||
-        t.phone.toLowerCase().includes(q),
-    )
+        (t) =>
+          t.name.toLowerCase().includes(q) ||
+          t.unit.toLowerCase().includes(q) ||
+          t.phone.toLowerCase().includes(q),
+      )
     : tenants;
 
   return (

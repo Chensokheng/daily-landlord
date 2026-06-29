@@ -1,8 +1,10 @@
 import { makeId } from "@/lib/id";
+import { nextInvoiceNumber } from "@/lib/invoice";
 import { useAppStore } from "@/lib/store";
 import type { Invoice } from "@/lib/types";
 
-export type InvoiceInput = Omit<Invoice, "id" | "createdAt">;
+/** The invoice number is assigned by the store on create, never by callers. */
+export type InvoiceInput = Omit<Invoice, "id" | "createdAt" | "number">;
 
 export async function listInvoices(): Promise<Invoice[]> {
   return useAppStore.getState().invoices;
@@ -13,7 +15,12 @@ export async function getInvoice(id: string): Promise<Invoice | null> {
 }
 
 export async function createInvoice(input: InvoiceInput): Promise<Invoice> {
-  const invoice: Invoice = { ...input, id: makeId(), createdAt: Date.now() };
+  const invoice: Invoice = {
+    ...input,
+    id: makeId(),
+    number: nextInvoiceNumber(useAppStore.getState().invoices),
+    createdAt: Date.now(),
+  };
   // Newest first.
   useAppStore.setState((s) => ({ invoices: [invoice, ...s.invoices] }));
   return invoice;

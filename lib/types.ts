@@ -77,6 +77,9 @@ export interface MeterReading {
 
 export interface Invoice {
   id: string;
+  /** Human-friendly, sequential invoice number (e.g. "INV-0007"). Shown on the
+   * shared invoice and searchable so the landlord can find it later. */
+  number: string;
   tenantId: string;
   /** Snapshot of tenant identity so the invoice survives tenant edits/removal. */
   tenantName: string;
