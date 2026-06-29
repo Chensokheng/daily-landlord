@@ -1,16 +1,17 @@
-
-
-import { ArrowLeft, Info, RotateCcw } from "lucide-react";
+import { ArrowLeft, Download, Info, RotateCcw } from "lucide-react";
 import type * as React from "react";
+import { useState } from "react";
 import { useConfigActions } from "@/hooks/use-config";
 import { LANGS, type Lang, setLang, useLang, useT } from "@/lib/i18n";
+import { useAppStore } from "@/lib/store";
+import { buildBackup } from "@/service/data.service";
 import {
   ExtrasFields,
   PaymentQrField,
   ProfileFields,
   UtilityFields,
 } from "./onboarding";
-import { MobileFrame, Segmented } from "./ui";
+import { Btn, MobileFrame, Segmented } from "./ui";
 
 export function Settings({ onBack }: { onBack: () => void }) {
   const { resetAll } = useConfigActions();
@@ -74,6 +75,9 @@ export function Settings({ onBack }: { onBack: () => void }) {
           <Section title={t("Payment QR")}>
             <PaymentQrField />
           </Section>
+          <Section title={t("Your data")}>
+            <DataExport />
+          </Section>
         </div>
 
         {/* Danger zone */}
@@ -95,6 +99,59 @@ export function Settings({ onBack }: { onBack: () => void }) {
         </div>
       </main>
     </MobileFrame>
+  );
+}
+
+/** Share (or download) a full JSON backup of everything stored on this device. */
+function DataExport() {
+  const t = useT();
+  const tenantCount = useAppStore((s) => s.tenants.length);
+  const invoiceCount = useAppStore((s) => s.invoices.length);
+  const [busy, setBusy] = useState(false);
+
+  const exportJson = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const backup = buildBackup();
+      const json = JSON.stringify(backup, null, 2);
+      const blob = new Blob([json], { type: "application/json" });
+      const stamp = backup.exportedAt.slice(0, 10); // yyyy-mm-dd
+      const fileName = `tally-backup-${stamp}.json`;
+      const file = new File([blob], fileName, { type: "application/json" });
+
+      // Prefer the native share sheet (mobile) so the file can go straight to a
+      // messaging app or cloud drive; fall back to a plain download elsewhere.
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: "Tally backup" });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch {
+      /* user cancelled the share sheet, or sharing failed — no-op */
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <Btn full variant="soft" onClick={exportJson} disabled={busy}>
+        <Download className="size-4" />
+        {busy ? `${t("Export all data")}…` : t("Export all data")}
+      </Btn>
+      <p className="mt-2.5 text-[0.8rem] leading-relaxed text-faint">
+        {t(
+          "Saves a JSON backup of your settings, {tenants} tenants and {invoices} invoices. Everything stays on this device.",
+          { tenants: tenantCount, invoices: invoiceCount },
+        )}
+      </p>
+    </>
   );
 }
 

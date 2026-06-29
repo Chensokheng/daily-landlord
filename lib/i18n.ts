@@ -110,6 +110,10 @@ const km: Record<string, string> = {
   "Water & electricity": "ទឹក និងអគ្គិសនី",
   "Other charges": "ការគិតថ្លៃផ្សេងៗ",
   Language: "ភាសា",
+  "Your data": "ទិន្នន័យរបស់អ្នក",
+  "Export all data": "នាំចេញទិន្នន័យទាំងអស់",
+  "Saves a JSON backup of your settings, {tenants} tenants and {invoices} invoices. Everything stays on this device.":
+    "រក្សាទុកច្បាប់ចម្លង JSON នៃការកំណត់ អ្នកជួល {tenants} នាក់ និងវិក្កយបត្រ {invoices}។ ទិន្នន័យទាំងអស់រក្សាក្នុងឧបករណ៍នេះ។",
   "Danger zone": "តំបន់គ្រោះថ្នាក់",
   "Reset everything": "កំណត់ឡើងវិញទាំងអស់",
   "Clears all tenants, invoices and settings on this device.":

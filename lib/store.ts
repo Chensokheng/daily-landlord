@@ -6,6 +6,9 @@ import { type AppState, defaultState, type Invoice } from "./types";
 
 export const STORAGE_KEY = "tally.v1";
 
+/** Persisted-state schema version — bump alongside `migrate` below. */
+export const SCHEMA_VERSION = 2;
+
 /**
  * Single source of truth, persisted to localStorage by zustand. The store
  * holds *data only* — all reads/writes go through the `service/` layer, which
@@ -14,7 +17,7 @@ export const STORAGE_KEY = "tally.v1";
 export const useAppStore = create<AppState>()(
   persist(() => ({ ...defaultState }), {
     name: STORAGE_KEY,
-    version: 2,
+    version: SCHEMA_VERSION,
     storage: createJSONStorage(() => localStorage),
     // Rehydrate manually in `useHydrated` so the server never touches localStorage.
     skipHydration: true,
