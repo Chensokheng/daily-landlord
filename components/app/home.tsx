@@ -14,13 +14,13 @@ import {
   Zap,
 } from "lucide-react";
 import type * as React from "react";
-import { useConfig, useConfigActions } from "@/hooks/use-config";
+import { useConfig } from "@/hooks/use-config";
 import { useInvoices } from "@/hooks/use-invoices";
 import { useTenants } from "@/hooks/use-tenants";
 import { attentionItems, billingTodos, statusLabel } from "@/lib/due";
 import type { UtilityConfig } from "@/lib/types";
 import { formatUSD } from "@/lib/utils";
-import { BillTodoRow, useRequestReadings } from "./bill-todo";
+import { BillTodoRow } from "./bill-todo";
 import type { InvoiceSeed } from "./invoices";
 import { MobileFrame } from "./ui";
 
@@ -29,17 +29,17 @@ export function Home({
   onNewInvoice,
   onOpenInvoices,
   onOpenBilling,
+  onOpenSettings,
 }: {
   onOpenTenants: () => void;
   onNewInvoice: (seed?: InvoiceSeed) => void;
   onOpenInvoices: () => void;
   onOpenBilling: () => void;
+  onOpenSettings: () => void;
 }) {
   const c = useConfig();
-  const { resetAll } = useConfigActions();
   const { data: tenants = [] } = useTenants();
   const { data: invoices = [] } = useInvoices();
-  const requestReadings = useRequestReadings();
   const firstName = c.profile.name.trim().split(/\s+/)[0] || "there";
 
   const now = Date.now();
@@ -78,10 +78,7 @@ export function Home({
           </div>
           <button
             type="button"
-            onClick={() => {
-              if (confirm("Reset everything and start setup again?"))
-                resetAll();
-            }}
+            onClick={onOpenSettings}
             className="pressable grid size-10 place-items-center rounded-full border border-line bg-surface text-ink-soft ring-soft hover:text-ink"
             aria-label="Settings"
           >
@@ -130,7 +127,6 @@ export function Home({
                   tenant={tenant}
                   monthKey={monthKey}
                   daysUntilDue={daysUntilDue}
-                  onRequestReadings={requestReadings}
                   onGenerate={(t, mk) =>
                     onNewInvoice({ tenantId: t.id, periodKey: mk })
                   }
@@ -239,6 +235,7 @@ export function Home({
             </h2>
             <button
               type="button"
+              onClick={onOpenSettings}
               className="pressable flex items-center gap-1 text-[0.82rem] font-medium text-brand"
             >
               Edit
@@ -275,7 +272,11 @@ export function Home({
                 Payment QR
               </h2>
             </div>
-            <div className="flex items-center gap-4 rounded-3xl border border-line bg-surface p-4 ring-card">
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="pressable flex w-full items-center gap-4 rounded-3xl border border-line bg-surface p-4 text-left ring-card hover:border-line2"
+            >
               <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-2xl border border-line bg-white">
                 {/* biome-ignore lint/performance/noImgElement: user-supplied data URL, not a static asset */}
                 <img
@@ -287,7 +288,8 @@ export function Home({
               <p className="text-[0.88rem] leading-relaxed text-ink-soft">
                 Shown on every invoice so tenants can scan and pay you directly.
               </p>
-            </div>
+              <ArrowRight className="size-4 shrink-0 text-faint" />
+            </button>
           </div>
         )}
 

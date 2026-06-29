@@ -6,16 +6,9 @@ import { Input } from "@/components/ui/input";
 import { useInvoices } from "@/hooks/use-invoices";
 import { useTenants } from "@/hooks/use-tenants";
 import { billingTodos } from "@/lib/due";
-import {
-  BillTodoRow,
-  billUrgency,
-  type Urgency,
-  useRequestReadings,
-} from "./bill-todo";
+import { BillTodoRow, billUrgency, type Urgency } from "./bill-todo";
 import type { InvoiceSeed } from "./invoices";
-import { MobileFrame, Segmented } from "./ui";
-
-type Filter = "all" | "self" | "tenant";
+import { MobileFrame } from "./ui";
 
 const GROUPS: { key: Urgency; label: string; dot: string }[] = [
   { key: "overdue", label: "Overdue", dot: "bg-destructive" },
@@ -32,20 +25,18 @@ export function Billing({
 }) {
   const { data: tenants = [] } = useTenants();
   const { data: invoices = [] } = useInvoices();
-  const requestReadings = useRequestReadings();
   const [query, setQuery] = React.useState("");
-  const [filter, setFilter] = React.useState<Filter>("all");
 
   const now = Date.now();
   const todos = billingTodos(tenants, invoices, now);
 
   const q = query.trim().toLowerCase();
   const shown = todos.filter(({ tenant }) => {
-    if (filter !== "all" && tenant.readingSource !== filter) return false;
     if (!q) return true;
     return (
       tenant.name.toLowerCase().includes(q) ||
-      tenant.unit.toLowerCase().includes(q)
+      tenant.unit.toLowerCase().includes(q) ||
+      tenant.phone.toLowerCase().includes(q)
     );
   });
 
@@ -75,25 +66,16 @@ export function Billing({
         )}
       </header>
 
-      <div className="space-y-3 px-6 pt-3 pb-1">
+      <div className="px-6 pt-3 pb-1">
         <div className="relative">
           <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-faint" />
           <Input
             className="pl-11"
-            placeholder="Search name or unit"
+            placeholder="Search name, unit or phone"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <Segmented<Filter>
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: "all", label: "All" },
-            { value: "self", label: "I read it" },
-            { value: "tenant", label: "Tenant reports" },
-          ]}
-        />
       </div>
 
       <main className="flex flex-1 flex-col overflow-y-auto px-6 pt-3 pb-6">
@@ -119,7 +101,6 @@ export function Billing({
                       tenant={tenant}
                       monthKey={monthKey}
                       daysUntilDue={daysUntilDue}
-                      onRequestReadings={requestReadings}
                       onGenerate={(t, mk) =>
                         onNewInvoice({ tenantId: t.id, periodKey: mk })
                       }
@@ -146,7 +127,7 @@ function EmptyState({ hasTodos }: { hasTodos: boolean }) {
       </h2>
       <p className="mt-2 max-w-[18rem] text-[0.95rem] leading-relaxed text-ink-soft">
         {hasTodos
-          ? "Try a different search or filter."
+          ? "Try a different search."
           : "Every tenant due this cycle has been billed. Nice work."}
       </p>
     </div>

@@ -2,15 +2,19 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as React from "react";
-import { seedMockTenants } from "@/lib/seed";
+import { seedMockInvoices, seedMockTenants } from "@/lib/seed";
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  // Dev-only: expose `seedTally()` in the browser console to load 20 mock
-  // tenants. Reload after running so React Query picks up the new data.
+  // Dev-only: expose `seedTally()` / `seedInvoices()` in the browser console.
+  // Reload after running so React Query picks up the new data.
   React.useEffect(() => {
     if (process.env.NODE_ENV !== "production") {
-      (window as unknown as { seedTally: typeof seedMockTenants }).seedTally =
-        seedMockTenants;
+      const w = window as unknown as {
+        seedTally: typeof seedMockTenants;
+        seedInvoices: typeof seedMockInvoices;
+      };
+      w.seedTally = seedMockTenants;
+      w.seedInvoices = seedMockInvoices;
     }
   }, []);
 

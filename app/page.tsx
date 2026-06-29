@@ -6,11 +6,12 @@ import { Billing } from "@/components/app/billing";
 import { Home } from "@/components/app/home";
 import { type InvoiceSeed, Invoices } from "@/components/app/invoices";
 import { Onboarding } from "@/components/app/onboarding";
+import { Settings } from "@/components/app/settings";
 import { Tenants } from "@/components/app/tenants";
 import { useOnboarded } from "@/hooks/use-config";
 import { useHydrated } from "@/lib/store";
 
-type Screen = "home" | "tenants" | "invoices" | "billing";
+type Screen = "home" | "tenants" | "invoices" | "billing" | "settings";
 
 export default function Page() {
   const hydrated = useHydrated();
@@ -53,6 +54,10 @@ export default function Page() {
     );
   }
 
+  if (screen === "settings") {
+    return <Settings onBack={() => setScreen("home")} />;
+  }
+
   if (screen === "invoices") {
     return (
       <Invoices
@@ -73,6 +78,7 @@ export default function Page() {
         setScreen("invoices");
       }}
       onOpenBilling={() => setScreen("billing")}
+      onOpenSettings={() => setScreen("settings")}
     />
   );
 }

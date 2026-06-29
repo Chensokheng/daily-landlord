@@ -133,7 +133,7 @@ export function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="block">
+    <div className="block min-w-0">
       <div className="mb-2 flex items-baseline justify-between gap-3">
         <span className="text-[0.8rem] font-medium tracking-wide text-ink-soft uppercase">
           {label}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   CalendarDays,
@@ -14,7 +15,6 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { useConfig } from "@/hooks/use-config";
@@ -30,15 +30,7 @@ import { currentMonthKey, invoiceStatus, nextMonthKey } from "@/lib/due";
 import { seedMockTenants } from "@/lib/seed";
 import type { Tenant } from "@/lib/types";
 import { cn, formatUSD } from "@/lib/utils";
-import {
-  Btn,
-  Field,
-  MobileFrame,
-  MoneyField,
-  Segmented,
-  Sheet,
-  Switch,
-} from "./ui";
+import { Btn, Field, MobileFrame, MoneyField, Sheet, Switch } from "./ui";
 
 type SheetState = { mode: "add" } | { mode: "edit"; tenant: Tenant } | null;
 
@@ -149,7 +141,13 @@ export function Tenants({ onBack }: { onBack: () => void }) {
 /* Empty state                                                        */
 /* ------------------------------------------------------------------ */
 
-function EmptyState({ onAdd, onSeed }: { onAdd: () => void; onSeed?: () => void }) {
+function EmptyState({
+  onAdd,
+  onSeed,
+}: {
+  onAdd: () => void;
+  onSeed?: () => void;
+}) {
   return (
     <div className="animate-rise flex flex-1 flex-col items-center justify-center text-center">
       <div className="grid size-16 place-items-center rounded-[1.3rem] border border-line bg-surface text-brand ring-card">
@@ -331,14 +329,11 @@ function TenantForm({
   const [moveInDate, setMoveInDate] = React.useState(tenant?.moveInDate ?? "");
   const [dueDay, setDueDay] = React.useState(tenant?.dueDay ?? 0);
   const [settledThisMonth, setSettledThisMonth] = React.useState(false);
-  const [readingSource, setReadingSource] = React.useState<"self" | "tenant">(
-    tenant?.readingSource ?? "self",
-  );
   const [notes, setNotes] = React.useState(tenant?.notes ?? "");
 
   const showWater = water.enabled && water.mode === "metered";
   const showElec = electricity.enabled && electricity.mode === "metered";
-  const valid = name.trim().length > 0;
+  const valid = name.trim().length > 0 && phone.trim().length > 0;
   const busy = create.isPending || update.isPending;
 
   const submit = async () => {
@@ -361,7 +356,6 @@ function TenantForm({
       moveInDate,
       dueDay,
       firstBillKey,
-      readingSource,
       notes: notes.trim(),
     };
     if (tenant) {
@@ -396,7 +390,7 @@ function TenantForm({
         </Field>
       </div>
 
-      <Field label="Phone" hint="optional">
+      <Field label="Phone" hint="required">
         <Input
           type="tel"
           inputMode="tel"
@@ -433,19 +427,6 @@ function TenantForm({
                 />
               </Field>
             )}
-          </div>
-
-          <div className="mt-4 border-t border-line2/60 pt-4">
-            <Field label="Who reads the meter each cycle?">
-              <Segmented<"self" | "tenant">
-                value={readingSource}
-                onChange={setReadingSource}
-                options={[
-                  { value: "self", label: "I read it" },
-                  { value: "tenant", label: "Tenant reports" },
-                ]}
-              />
-            </Field>
           </div>
         </div>
       )}

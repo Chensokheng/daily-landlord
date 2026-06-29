@@ -208,7 +208,7 @@ function Section({
 /* Profile                                                            */
 /* ------------------------------------------------------------------ */
 
-function ProfileFields() {
+export function ProfileFields() {
   const config = useConfig();
   const { updateProfile } = useConfigActions();
   const p = config.profile;
@@ -257,7 +257,7 @@ function ProfileFields() {
 /* Utilities — water (m³) & electricity (kWh)                         */
 /* ------------------------------------------------------------------ */
 
-function UtilityFields() {
+export function UtilityFields() {
   return (
     <div className="space-y-4">
       <UtilityCard
@@ -364,7 +364,7 @@ function UtilityCard({
 /* Extra fees                                                         */
 /* ------------------------------------------------------------------ */
 
-function ExtrasFields() {
+export function ExtrasFields() {
   const config = useConfig();
   const { addExtra, removeExtra } = useConfigActions();
   const extras = config.extras;

@@ -52,8 +52,6 @@ export interface Tenant {
   dueDay: number;
   /** First month (yyyy-mm) Tally should nudge to bill — lets a mid-cycle, already-settled tenant skip the current month. */
   firstBillKey: string;
-  /** Who supplies the meter readings each cycle: the landlord reads, or the tenant reports. */
-  readingSource: "self" | "tenant";
   /** Optional free-text notes */
   notes: string;
   createdAt: number;

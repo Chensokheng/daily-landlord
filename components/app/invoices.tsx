@@ -1,11 +1,13 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
   BadgeCheck,
   CalendarClock,
   Check,
+  ChevronDown,
   ChevronRight,
   Download,
   Droplets,
@@ -13,7 +15,9 @@ import {
   Pencil,
   Receipt,
   RotateCcw,
+  Search,
   Trash2,
+  TriangleAlert,
   Users,
   Zap,
 } from "lucide-react";
@@ -21,6 +25,7 @@ import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { useConfig } from "@/hooks/use-config";
 import {
+  invoiceKeys,
   useCreateInvoice,
   useDeleteInvoice,
   useInvoices,
@@ -41,11 +46,14 @@ import {
   type InvoiceDraft,
   previousReadings,
 } from "@/lib/invoice";
-import type { Invoice, LandlordProfile } from "@/lib/types";
+import { seedMockInvoices } from "@/lib/seed";
+import type { Invoice, LandlordProfile, Tenant } from "@/lib/types";
 import { cn, formatQty, formatUSD } from "@/lib/utils";
-import { Btn, Field, MobileFrame, Switch } from "./ui";
+import { Btn, Field, MobileFrame, Segmented, Sheet, Switch } from "./ui";
 
 type Mode = "list" | "build" | "view";
+
+const IS_DEV = process.env.NODE_ENV !== "production";
 
 export interface InvoiceSeed {
   tenantId?: string;
@@ -72,6 +80,10 @@ export function Invoices({
         onCancel={() => setMode("list")}
         onSaved={(inv) => {
           setViewId(inv.id);
+          setMode("view");
+        }}
+        onOpenInvoice={(id) => {
+          setViewId(id);
           setMode("view");
         }}
       />
@@ -113,6 +125,47 @@ function InvoiceList({
   const { data: tenants = [] } = useTenants();
   const hasTenants = tenants.length > 0;
   const now = Date.now();
+  const qc = useQueryClient();
+
+  const seed = () => {
+    seedMockInvoices();
+    qc.invalidateQueries({ queryKey: invoiceKeys.all });
+  };
+
+  const [query, setQuery] = React.useState("");
+  const [filter, setFilter] = React.useState<"all" | "unpaid" | "paid">("all");
+  const [month, setMonth] = React.useState<string>("all");
+
+  // Distinct billing months present, newest first — drives the month chips.
+  const months = [...new Set(invoices.map((i) => i.periodKey))]
+    .sort()
+    .reverse();
+
+  const q = query.trim().toLowerCase();
+  const shown = invoices.filter((inv) => {
+    if (filter === "paid" && inv.paidAt === null) return false;
+    if (filter === "unpaid" && inv.paidAt !== null) return false;
+    if (month !== "all" && inv.periodKey !== month) return false;
+    if (!q) return true;
+    return (
+      inv.tenantName.toLowerCase().includes(q) ||
+      inv.tenantUnit.toLowerCase().includes(q)
+    );
+  });
+
+  // Group the filtered invoices by billing month, newest month first.
+  const groupKeys = [...new Set(shown.map((i) => i.periodKey))]
+    .sort()
+    .reverse();
+  const groups = groupKeys.map((key) => {
+    const items = shown.filter((i) => i.periodKey === key);
+    return {
+      key,
+      label: items[0].periodLabel,
+      items,
+      total: items.reduce((sum, i) => sum + i.total, 0),
+    };
+  });
 
   return (
     <MobileFrame>
@@ -135,7 +188,49 @@ function InvoiceList({
         )}
       </header>
 
-      <main className="flex flex-1 flex-col overflow-y-auto px-6 pt-3 pb-4">
+      {invoices.length > 0 && (
+        <div className="space-y-3 px-6 pt-3 pb-1">
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-faint" />
+            <Input
+              className="pl-11"
+              placeholder="Search tenant or unit"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          <Segmented<"all" | "unpaid" | "paid">
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: "all", label: "All" },
+              { value: "unpaid", label: "Unpaid" },
+              { value: "paid", label: "Paid" },
+            ]}
+          />
+          {months.length > 1 && (
+            <div className="-mx-6 flex gap-2 overflow-x-auto px-6 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <MonthChip
+                active={month === "all"}
+                onClick={() => setMonth("all")}
+              >
+                All months
+              </MonthChip>
+              {months.map((k) => (
+                <MonthChip
+                  key={k}
+                  active={month === k}
+                  onClick={() => setMonth(k)}
+                >
+                  {monthKeyToLabel(k)}
+                </MonthChip>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <main className="flex flex-1 flex-col overflow-y-auto px-6 pt-3 pb-28">
         {invoices.length === 0 ? (
           <div className="animate-rise flex flex-1 flex-col items-center justify-center text-center">
             <div className="grid size-16 place-items-center rounded-[1.3rem] border border-line bg-surface text-brand ring-card">
@@ -150,50 +245,114 @@ function InvoiceList({
                 : "Add a tenant first — then you can generate their invoice here."}
             </p>
           </div>
+        ) : shown.length === 0 ? (
+          <div className="animate-rise flex flex-1 flex-col items-center justify-center text-center">
+            <div className="grid size-16 place-items-center rounded-[1.3rem] border border-line bg-surface text-faint ring-card">
+              <Search className="size-7" />
+            </div>
+            <h2 className="mt-5 font-display text-[1.4rem] font-bold tracking-tight text-ink">
+              No matches
+            </h2>
+            <p className="mt-2 max-w-[18rem] text-[0.95rem] leading-relaxed text-ink-soft">
+              Try a different search or filter.
+            </p>
+          </div>
         ) : (
-          <ul className="space-y-3">
-            {invoices.map((inv) => (
-              <li key={inv.id}>
-                <button
-                  type="button"
-                  onClick={() => onOpen(inv.id)}
-                  className="pressable flex w-full items-center gap-3.5 rounded-3xl border border-line bg-surface p-4 text-left ring-card hover:border-line2"
-                >
-                  <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-wash text-brand-ink">
-                    <FileText className="size-5" />
+          <div className="space-y-5">
+            {groups.map((g) => (
+              <section key={g.key}>
+                <div className="mb-2 flex items-center gap-2 px-1">
+                  <h2 className="text-[0.78rem] font-semibold tracking-wide text-ink-soft uppercase">
+                    {g.label}
+                  </h2>
+                  <span className="nums text-[0.78rem] text-faint">
+                    {g.items.length}
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-display text-[1.05rem] font-semibold text-ink">
-                      {inv.tenantName}
-                    </p>
-                    <p className="text-[0.84rem] text-faint">
-                      {inv.periodLabel}
-                      {inv.tenantUnit ? ` · ${inv.tenantUnit}` : ""}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="nums font-mono text-[1.05rem] font-semibold text-ink">
-                      {formatUSD(inv.total)}
-                    </span>
-                    <StatusBadge invoice={inv} now={now} />
-                  </div>
-                  <ChevronRight className="size-4 text-faint" />
-                </button>
-              </li>
+                  <span className="nums ml-auto font-mono text-[0.82rem] font-semibold text-ink-soft">
+                    {formatUSD(g.total)}
+                  </span>
+                </div>
+                <ul className="space-y-3">
+                  {g.items.map((inv) => (
+                    <li key={inv.id}>
+                      <button
+                        type="button"
+                        onClick={() => onOpen(inv.id)}
+                        className="pressable flex w-full items-center gap-3.5 rounded-3xl border border-line bg-surface p-4 text-left ring-card hover:border-line2"
+                      >
+                        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-wash text-brand-ink">
+                          <FileText className="size-5" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-display text-[1.05rem] font-semibold text-ink">
+                            {inv.tenantName}
+                          </p>
+                          <p className="text-[0.84rem] text-faint">
+                            {inv.tenantUnit
+                              ? inv.tenantUnit
+                              : `Issued ${formatDate(inv.createdAt)}`}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="nums font-mono text-[1.05rem] font-semibold text-ink">
+                            {formatUSD(inv.total)}
+                          </span>
+                          <StatusBadge invoice={inv} now={now} />
+                        </div>
+                        <ChevronRight className="size-4 text-faint" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
+          </div>
         )}
       </main>
 
       {hasTenants && (
-        <div className="border-t border-line bg-paper/80 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
+        <div className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-[460px] space-y-2 border-t border-line bg-paper/85 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
           <Btn full onClick={onNew}>
             <Receipt className="size-5" />
             New invoice
           </Btn>
+          {IS_DEV && (
+            <button
+              type="button"
+              onClick={seed}
+              className="pressable w-full rounded-xl py-2 text-[0.8rem] font-medium text-faint hover:text-ink"
+            >
+              Seed mock invoices (dev)
+            </button>
+          )}
         </div>
       )}
     </MobileFrame>
+  );
+}
+
+function MonthChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "pressable shrink-0 rounded-full border px-3.5 py-1.5 text-[0.82rem] font-medium whitespace-nowrap transition-colors",
+        active
+          ? "border-brand bg-brand-wash text-brand-ink"
+          : "border-line bg-surface text-ink-soft hover:border-line2",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -205,10 +364,12 @@ function InvoiceBuilder({
   seed,
   onCancel,
   onSaved,
+  onOpenInvoice,
 }: {
   seed?: InvoiceSeed;
   onCancel: () => void;
   onSaved: (inv: Invoice) => void;
+  onOpenInvoice: (id: string) => void;
 }) {
   const config = useConfig();
   const { data: tenants = [] } = useTenants();
@@ -216,6 +377,13 @@ function InvoiceBuilder({
   const createInvoice = useCreateInvoice();
 
   const [step, setStep] = React.useState<"form" | "preview">("form");
+  // Land at the top whenever the builder opens or swaps form ⇄ preview.
+  // The frame scrolls at the window level (min-h-dvh, not a fixed height),
+  // so reset the window — not an inner container.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-run on step change
+  React.useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [step]);
   const [tenantId, setTenantId] = React.useState(
     seed?.tenantId ?? tenants[0]?.id ?? "",
   );
@@ -231,6 +399,24 @@ function InvoiceBuilder({
 
   const tenant = tenants.find((t) => t.id === tenantId) ?? tenants[0];
   const periodLabel = monthKeyToLabel(periodKey);
+
+  // Tenants that already have an invoice for the selected billing month —
+  // surfaced so the landlord doesn't accidentally bill the same month twice.
+  const billedIds = React.useMemo(
+    () =>
+      new Set(
+        invoices
+          .filter((i) => i.periodKey === periodKey)
+          .map((i) => i.tenantId),
+      ),
+    [invoices, periodKey],
+  );
+  // The tenant's existing invoice for this month, if any — newest first.
+  const existingInvoice = tenant
+    ? (invoices.find(
+        (i) => i.tenantId === tenant.id && i.periodKey === periodKey,
+      ) ?? null)
+    : null;
 
   // When the tenant changes, prefill the "previous" readings from history.
   // biome-ignore lint/correctness/useExhaustiveDependencies: prefill only keyed on the selected tenant
@@ -264,7 +450,7 @@ function InvoiceBuilder({
     ? computeInvoice(config, tenant, draft)
     : { lines: [], total: 0, readings: {} };
 
-  const save = async () => {
+  const save = async (markPaid = false) => {
     if (!tenant || createInvoice.isPending) return;
     const inv = await createInvoice.mutateAsync({
       tenantId: tenant.id,
@@ -273,7 +459,7 @@ function InvoiceBuilder({
       periodLabel,
       periodKey,
       dueDate,
-      paidAt: null,
+      paidAt: markPaid ? Date.now() : null,
       lines: computed.lines,
       total: computed.total,
       readings: computed.readings,
@@ -328,14 +514,31 @@ function InvoiceBuilder({
         </main>
 
         <div className="space-y-2.5 border-t border-line bg-paper/80 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
-          <Btn full onClick={save} disabled={createInvoice.isPending}>
+          <Btn
+            full
+            onClick={() => save(false)}
+            disabled={createInvoice.isPending}
+          >
             <Check className="size-5" />
             {createInvoice.isPending ? "Saving…" : "Save invoice"}
           </Btn>
-          <Btn full variant="ghost" onClick={() => setStep("form")}>
-            <Pencil className="size-4" />
-            Keep editing
+          <Btn
+            full
+            variant="ghost"
+            onClick={() => save(true)}
+            disabled={createInvoice.isPending}
+          >
+            <BadgeCheck className="size-5" />
+            Save & mark paid
           </Btn>
+          <button
+            type="button"
+            onClick={() => setStep("form")}
+            className="pressable mx-auto flex items-center gap-1.5 py-1 text-[0.85rem] font-medium text-faint hover:text-ink"
+          >
+            <Pencil className="size-3.5" />
+            Keep editing
+          </button>
         </div>
       </MobileFrame>
     );
@@ -362,34 +565,17 @@ function InvoiceBuilder({
         <div className="space-y-6">
           {/* Tenant */}
           {tenants.length > 1 && (
-            <div>
-              <p className="mb-2.5 text-[0.8rem] font-medium tracking-wide text-ink-soft uppercase">
-                Tenant
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {tenants.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setTenantId(t.id)}
-                    className={cn(
-                      "pressable rounded-2xl border px-3.5 py-2 text-[0.9rem] font-medium transition-colors",
-                      t.id === tenantId
-                        ? "border-brand bg-brand-wash text-brand-ink"
-                        : "border-line bg-surface text-ink-soft hover:border-line2",
-                    )}
-                  >
-                    {t.name}
-                    {t.unit ? (
-                      <span className="ml-1 text-faint">· {t.unit}</span>
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <Field label="Tenant">
+              <TenantPicker
+                tenants={tenants}
+                value={tenantId}
+                onChange={setTenantId}
+                billedIds={billedIds}
+              />
+            </Field>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-6">
             <Field label="Billing month">
               <Input
                 type="month"
@@ -397,6 +583,7 @@ function InvoiceBuilder({
                 onChange={(e) =>
                   setPeriodKey(e.target.value || currentMonthKey(Date.now()))
                 }
+                className="w-[90%]"
               />
             </Field>
             <Field label="Due date">
@@ -404,9 +591,32 @@ function InvoiceBuilder({
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
+                className="w-[90%]"
               />
             </Field>
           </div>
+
+          {existingInvoice && tenant && (
+            <div className="rounded-2xl border border-amber-300/50 bg-amber-50 p-3.5">
+              <div className="flex gap-2.5">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                <p className="text-[0.85rem] leading-relaxed text-amber-900">
+                  <span className="font-semibold">{tenant.name}</span> already
+                  has an invoice for{" "}
+                  <span className="font-semibold">{periodLabel}</span>. Saving
+                  will create a second one.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onOpenInvoice(existingInvoice.id)}
+                className="pressable mt-2.5 ml-[1.625rem] flex items-center gap-1 text-[0.85rem] font-semibold text-amber-800 hover:text-amber-900"
+              >
+                View existing invoice
+                <ArrowRight className="size-3.5" />
+              </button>
+            </div>
+          )}
 
           {/* Readings */}
           {(showWater || showElec) && (
@@ -940,3 +1150,138 @@ const InvoiceDoc = React.forwardRef<HTMLDivElement, DocProps>(
     );
   },
 );
+
+/* ------------------------------------------------------------------ */
+/* Tenant picker — searchable sheet, scales past a wall of chips       */
+/* ------------------------------------------------------------------ */
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  return parts.map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
+}
+
+function BilledBadge() {
+  return (
+    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[0.68rem] font-semibold text-amber-700">
+      Billed
+    </span>
+  );
+}
+
+function TenantPicker({
+  tenants,
+  value,
+  onChange,
+  billedIds,
+}: {
+  tenants: Tenant[];
+  value: string;
+  onChange: (id: string) => void;
+  /** Tenant ids already invoiced for the selected billing month. */
+  billedIds: Set<string>;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  const selected = tenants.find((t) => t.id === value);
+
+  const close = () => {
+    setOpen(false);
+    setQuery("");
+  };
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? tenants.filter(
+        (t) =>
+          t.name.toLowerCase().includes(q) ||
+          t.unit.toLowerCase().includes(q) ||
+          t.phone.toLowerCase().includes(q),
+      )
+    : tenants;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="pressable flex h-13 w-full items-center gap-2 rounded-2xl border border-line bg-surface px-4 text-left ring-soft transition-colors hover:border-line2"
+      >
+        <span className="min-w-0 flex-1 truncate text-[1.05rem] text-ink">
+          {selected ? (
+            <>
+              {selected.name}
+              {selected.unit ? (
+                <span className="text-faint"> · {selected.unit}</span>
+              ) : null}
+            </>
+          ) : (
+            <span className="text-faint">Select tenant</span>
+          )}
+        </span>
+        {selected && billedIds.has(selected.id) && <BilledBadge />}
+        <ChevronDown className="size-4 shrink-0 text-faint" />
+      </button>
+
+      <Sheet open={open} onClose={close} title="Select tenant">
+        <div className="space-y-3 pb-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-faint" />
+            <Input
+              autoFocus
+              className="pl-11"
+              placeholder="Search name, unit or phone"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          <ul className="max-h-[50vh] space-y-1.5 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <li className="py-8 text-center text-[0.9rem] text-faint">
+                No tenants match.
+              </li>
+            ) : (
+              filtered.map((t) => {
+                const active = t.id === value;
+                return (
+                  <li key={t.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChange(t.id);
+                        close();
+                      }}
+                      className={cn(
+                        "pressable flex w-full items-center gap-3 rounded-2xl border px-3.5 py-2.5 text-left transition-colors",
+                        active
+                          ? "border-brand bg-brand-wash"
+                          : "border-line bg-surface hover:border-line2",
+                      )}
+                    >
+                      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-wash font-display text-[0.85rem] font-bold text-brand-ink">
+                        {initials(t.name)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-display text-[1rem] font-semibold text-ink">
+                          {t.name}
+                        </span>
+                        {t.unit ? (
+                          <span className="block truncate text-[0.78rem] text-faint">
+                            {t.unit}
+                          </span>
+                        ) : null}
+                      </span>
+                      {billedIds.has(t.id) && <BilledBadge />}
+                      {active && (
+                        <Check className="size-4 shrink-0 text-brand" />
+                      )}
+                    </button>
+                  </li>
+                );
+              })
+            )}
+          </ul>
+        </div>
+      </Sheet>
+    </>
+  );
+}
