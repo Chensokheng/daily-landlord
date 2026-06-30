@@ -2,6 +2,7 @@
 
 import {
   ArrowRight,
+  BadgeCheck,
   Droplets,
   Gauge,
   QrCode,
@@ -107,8 +108,9 @@ export function Home({
           />
         </div>
 
-        {/* To bill this month */}
-        {todos.length > 0 && (
+        {/* To bill this month — the list, or an all-clear once nothing's left.
+            Hidden entirely for brand-new accounts with no tenants yet. */}
+        {todos.length > 0 ? (
           <div
             className="animate-rise mt-5"
             style={{ animationDelay: "0.08s" }}
@@ -146,7 +148,32 @@ export function Home({
               </button>
             )}
           </div>
-        )}
+        ) : tenants.length > 0 ? (
+          <div
+            className="animate-rise mt-5"
+            style={{ animationDelay: "0.08s" }}
+          >
+            <div className="mb-2.5 flex items-center gap-2">
+              <Gauge className="size-3.5 text-brand" />
+              <h2 className="text-[0.8rem] font-medium tracking-wide text-ink-soft uppercase">
+                {t("To bill this month")}
+              </h2>
+            </div>
+            <div className="flex items-center gap-3 rounded-3xl border border-ok/20 bg-ok-wash p-4 ring-card">
+              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-ok/10 text-ok">
+                <BadgeCheck className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-display text-[1.02rem] font-semibold text-ink">
+                  {t("All clear this month")}
+                </p>
+                <p className="text-[0.84rem] text-faint">
+                  {t("Every tenant due this cycle has been billed.")}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {/* Needs attention */}
         {attention.length > 0 && (

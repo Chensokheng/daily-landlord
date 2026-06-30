@@ -10,6 +10,7 @@ import {
   Pencil,
   Phone,
   Plus,
+  Search,
   StickyNote,
   Trash2,
   UserCheck,
@@ -68,6 +69,7 @@ export function Tenants({
   const [confirm, setConfirm] = React.useState<Confirm>(null);
   const [statusFilter, setStatusFilter] =
     React.useState<StatusFilter>("active");
+  const [query, setQuery] = React.useState("");
 
   const seed = () => {
     seedMockTenants();
@@ -81,13 +83,23 @@ export function Tenants({
       (i) => i.tenantId === id && invoiceStatus(i, now) === "overdue",
     ).length;
 
-  const shown = tenants.filter((t) =>
-    statusFilter === "all"
-      ? true
-      : statusFilter === "active"
-        ? isTenantActive(t)
-        : !isTenantActive(t),
-  );
+  const q = query.trim().toLowerCase();
+  const shown = tenants
+    .filter((t) =>
+      statusFilter === "all"
+        ? true
+        : statusFilter === "active"
+          ? isTenantActive(t)
+          : !isTenantActive(t),
+    )
+    .filter((t) => {
+      if (!q) return true;
+      return (
+        t.name.toLowerCase().includes(q) ||
+        t.unit.toLowerCase().includes(q) ||
+        t.phone.toLowerCase().includes(q)
+      );
+    });
 
   // Reactivating is harmless — do it directly; moving out asks first.
   const toggleStatus = (t: Tenant) => {
@@ -137,7 +149,16 @@ export function Tenants({
           />
         ) : (
           <>
-            <div className="pb-3">
+            <div className="space-y-3 pb-3">
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-faint" />
+                <Input
+                  className="pl-11"
+                  placeholder={t("Search name, unit or phone")}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
               <Segmented<StatusFilter>
                 value={statusFilter}
                 onChange={setStatusFilter}
@@ -150,9 +171,11 @@ export function Tenants({
             </div>
             {shown.length === 0 ? (
               <p className="mt-10 text-center text-[0.9rem] text-faint">
-                {statusFilter === "inactive"
-                  ? t("No moved-out tenants.")
-                  : t("No tenants here.")}
+                {q
+                  ? t("No tenants match.")
+                  : statusFilter === "inactive"
+                    ? t("No moved-out tenants.")
+                    : t("No tenants here.")}
               </p>
             ) : (
               <ul className="space-y-3">
@@ -472,7 +495,11 @@ function TenantForm({
 
   const showWater = water.enabled && water.mode === "metered";
   const showElec = electricity.enabled && electricity.mode === "metered";
-  const valid = name.trim().length > 0 && phone.trim().length > 0;
+  const valid =
+    name.trim().length > 0 &&
+    phone.trim().length > 0 &&
+    rent > 0 &&
+    dueDay >= 1;
   const busy = create.isPending || update.isPending;
 
   const submit = async () => {
@@ -523,7 +550,7 @@ function TenantForm({
             onChange={(e) => setUnit(e.target.value)}
           />
         </Field>
-        <Field label={t("Monthly rent")} hint={t("optional")}>
+        <Field label={t("Monthly rent")} hint={t("required")}>
           <MoneyField value={rent} onValueChange={setRent} />
         </Field>
       </div>
@@ -574,7 +601,7 @@ function TenantForm({
             onChange={(e) => setMoveInDate(e.target.value)}
           />
         </Field>
-        <Field label={t("Rent due day")} hint={t("optional")}>
+        <Field label={t("Rent due day")} hint={t("required")}>
           <Input
             type="number"
             inputMode="numeric"

@@ -28,6 +28,9 @@ const km: Record<string, string> = {
   // Home
   "Hi, {name}.": "សួស្តី {name}។",
   "To bill this month": "ត្រូវចេញវិក្កយបត្រខែនេះ",
+  "All clear this month": "អស់ហើយខែនេះ",
+  "Every tenant due this cycle has been billed.":
+    "អ្នកជួលទាំងអស់ដែលត្រូវបង់ក្នុងវដ្តនេះ បានចេញវិក្កយបត្ររួចហើយ។",
   "Needs attention": "ត្រូវការការយកចិត្តទុកដាក់",
   "{n} overdue": "ហួសកំណត់ {n}",
   "{n} due soon": "ជិតដល់ {n}",
@@ -150,6 +153,7 @@ const km: Record<string, string> = {
   "Mark as paid": "សម្គាល់ថាបានបង់",
   "Mark as unpaid": "សម្គាល់ថាមិនទាន់បង់",
   "Share / download": "ចែករំលែក / ទាញយក",
+  "Chat on Telegram": "ជជែកតាម Telegram",
   Invoice: "វិក្កយបត្រ",
   "Delete invoice?": "លុបវិក្កយបត្រ?",
   Tenant: "អ្នកជួល",

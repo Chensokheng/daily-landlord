@@ -129,7 +129,7 @@ export const defaultConfig: Config = {
     unit: "kWh",
     flatAmount: 15,
   },
-  extras: [{ id: "trash", name: "Trash collection", amount: 2 }],
+  extras: [],
   paymentQr: "",
   currency: "USD",
 };

@@ -14,6 +14,7 @@ import {
   Receipt,
   RotateCcw,
   Search,
+  Send,
   Trash2,
   TriangleAlert,
   Users,
@@ -50,7 +51,7 @@ import {
 } from "@/lib/invoice";
 import { seedMockInvoices } from "@/lib/seed";
 import type { Invoice, LandlordProfile, Tenant } from "@/lib/types";
-import { cn, formatQty, formatUSD } from "@/lib/utils";
+import { cn, formatQty, formatUSD, telegramHref } from "@/lib/utils";
 import {
   Btn,
   ConfirmDialog,
@@ -888,8 +889,14 @@ export function InvoiceView({
 }) {
   const config = useConfig();
   const t = useT();
+  const { data: tenants = [] } = useTenants();
   const del = useDeleteInvoice();
   const setPaid = useSetInvoicePaid();
+
+  // The invoice snapshots tenant name/unit but not their phone, so resolve the
+  // live tenant to build a quick-chat link. Null when they've been removed.
+  const tenant = tenants.find((tn) => tn.id === invoice.tenantId);
+  const telegram = telegramHref(tenant?.phone ?? "");
   const docRef = React.useRef<HTMLDivElement>(null);
   const confettiRef = React.useRef<ConfettiRef>(null);
   const [busy, setBusy] = React.useState(false);
@@ -1039,6 +1046,17 @@ export function InvoiceView({
           <Download className="size-5" />
           {busy ? "Preparing…" : t("Share / download")}
         </Btn>
+        {telegram && (
+          <a
+            href={telegram}
+            target="_blank"
+            rel="noreferrer"
+            className="pressable inline-flex h-13 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-surface px-5 text-[0.95rem] font-medium tracking-tight text-[#229ED9] outline-none select-none hover:border-line2"
+          >
+            <Send className="size-5" />
+            {t("Chat on Telegram")}
+          </a>
+        )}
       </div>
 
       <Confetti
